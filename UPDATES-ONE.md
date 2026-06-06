@@ -1,0 +1,4 @@
+# session 1
+Scaffolded the app — Next.js + TypeScript, installed CopilotKit (v2) + OpenAI SDK + Weave + Redis, created stub files for your 3 agents (orchestrator, content, ui-composer), the render layer, and lib helpers (weave.ts, redis.ts, ui-contract.ts). Confirmed the blank page loads.
+Set up local Redis — pulled and ran the Redis Docker container, pointed redis.ts at redis://localhost:6379 with a connect-once pattern.
+Fixed two CopilotKit v2 errors — the 404 (added a default BuiltInAgent to the runtime route) and explained the 405 on /threads (harmless — it's the persistence feature you're not using).
