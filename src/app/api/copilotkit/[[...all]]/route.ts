@@ -17,7 +17,17 @@ const runtime = new CopilotRuntime({
 // Hono app serving /info, /threads, /agent/.../run under the base path.
 const app = createCopilotEndpoint({ runtime, basePath: "/api/copilotkit" });
 
-// All CopilotKit traffic goes through one handler, on every method it uses.
-const handler = (req: Request) => app.fetch(req);
+// react-core probes /threads on mount; without CopilotKitIntelligence the
+// runtime returns 422. Short-circuit with an empty list so the console stays clean.
+const handler = (req: Request) => {
+  const { pathname } = new URL(req.url);
+  if (req.method === "GET" && pathname === "/api/copilotkit/threads") {
+    return new Response(JSON.stringify({ threads: [], nextCursor: null }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }
+  return app.fetch(req);
+};
 
 export { handler as GET, handler as POST, handler as PUT, handler as DELETE };
