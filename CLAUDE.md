@@ -16,6 +16,8 @@ Required env vars (loaded from `.env` / `.env.local`, never imported from client
 - `OPENAI_API_KEY` — used by the agent pipeline (`gpt-4o-mini`) and the CopilotKit runtime (`gpt-4.1-mini`)
 - `WANDB_API_KEY` — for Weave tracing
 - `WEAVE_PROJECT` (optional) — Weave project name, defaults to `weavehacks4`
+- `REDIS_URL` (optional) — connection string for the theme-agent cache, e.g. `rediss://default:<password>@<host>:<port>` from Redis Cloud. When unset, the cache no-ops and every theme request hits OpenAI as before.
+- `THEME_CACHE_TTL_SECONDS` (optional) — TTL for cached themes; defaults to 86400 (1 day).
 
 ## Architecture
 
@@ -61,6 +63,19 @@ Two deliberate divergences exist between the LLM-facing Zod schema in `ui-compos
 - **`bgSolid` field on `Theme`.** A solid-hex twin of `bg`, used wherever a gradient breaks. Specifically `DiagramFlow.tsx` uses it for the edge-label halo, because SVG `stroke` doesn't accept `linear-gradient(...)`. All static themes set both.
 
 **Scope-honest caveat:** the theme agent picks colors, fonts, and measure, but plenty of styling inside `Block.tsx` is still hardcoded — the syntax-highlight palette (`#ff7edb` / `#5ef2a0` / `#6cb6ff`), terminal traffic-light chrome, and the `#fff` text drawn on `theme.ink` (table header) and `theme.accent` (tldr). A fully adaptive theme would move those into the contract or compute them from luminance; this PR did not.
+
+### Theme cache (Redis)
+
+`src/lib/cache.ts` wraps `redis` (node-redis v6) with two helpers — `getCachedTheme(persona)` and `setCachedTheme(persona, theme)` — that `theme-agent.ts` consults at the top of `runThemeAgent` and writes to after the contrast gate passes. Designed for a Redis Cloud connection (TLS, port 6379), but works against any standard Redis instance.
+
+- **Key shape: `theme:v1:${persona}`.** Persona-only on purpose: max hit rate at the cost of topic-tinting within a TTL window. Within the TTL, every researcher request returns the same colors/fonts/measure (whatever the first dynamic call produced). Cross-persona isolation is preserved.
+- **Schema version in the key.** Bump `SCHEMA_VERSION` in `src/lib/cache.ts` whenever the `Theme` type in `src/components/render/Theme.ts` gains or loses a field — stale entries from a previous shape would deserialize wrong and reach the renderer.
+- **`REDIS_URL` format.** Must be a full URI (`rediss://default:<password>@<host>:<port>` for Redis Cloud TLS, or `redis://...` for plain TCP). The bare `<host>:<port>` shown on the Redis Cloud dashboard is **not** sufficient; assemble the full URL with the default user and password from the dashboard.
+- **Optional dep.** If `REDIS_URL` is unset or malformed, the lazy singleton in `cache.ts` stores `null` on `globalThis._themeCacheRedis` and both helpers no-op. The pipeline runs exactly as before. Connect/read/write errors are caught and logged (`[theme-cache] connect failed:` / `read failed:` / `write failed:`); they never break a request.
+- **Hot-reload safety.** The client is cached on `globalThis._themeCacheRedis` so Next.js dev hot reloads don't leak TCP connections — standard node-redis-in-Next.js pattern.
+- **TTL via env.** `THEME_CACHE_TTL_SECONDS` defaults to 86400 (1 day).
+- **Cache hits don't reduce wall-time directly.** Theme-agent runs in parallel with `content-agent → ui-composer` (the longer branch); a cache hit just removes one OpenAI call and shrinks the theme-agent span in Weave. Cost savings are real; latency savings show up only if/when `content-agent` is also cached someday.
+- **Shell-env shadowing** (the `OPENAI_API_KEY` trap from PR #6) applies to `REDIS_URL` too — `unset REDIS_URL` in your shell or launch with `env -u REDIS_URL npm run dev` if you ever see stale-connection errors after rotating.
 
 ### Renderer
 
