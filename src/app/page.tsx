@@ -7,7 +7,7 @@ import type { Block, Persona } from "@/lib/ui-contract";
 import { useAgent, UseAgentUpdate } from "@copilotkit/react-core/v2";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500;700&family=Archivo:wght@400;500;600;700;800;900&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');`;
+const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Playfair+Display:ital,wght@0,400;0,700;0,800;0,900;1,400;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,600&family=JetBrains+Mono:wght@400;500;700&family=Archivo:wght@400;500;600;700;800;900&family=Nunito:wght@400;600;700;800;900&family=Fredoka:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,400&family=DM+Sans:wght@400;500;600;700&family=Caveat:wght@400;500;600;700&family=Quicksand:wght@400;500;600;700&family=Bricolage+Grotesque:wght@400;500;600;700;800&display=swap');`;
 
 const STATUS_LABEL: Record<string, string> = {
   writing: "✍️  writing the explanation…",
@@ -15,8 +15,10 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const BAR_BG = "#0a0c12";
 
-type Turn = { request: string; persona: Persona; blocks: Block[]; theme?: Theme };
+type Turn = { request: string; persona: Persona; blocks: Block[]; theme: Theme };
 
+// Static header for completed turns — uses the theme captured when that turn
+// was generated, so prior turns keep their look even after a new persona run.
 function QuestionHeader({ text, theme }: { text: string; theme: Theme }) {
   return (
     <div style={{ maxWidth: theme.measure, margin: "0 auto", padding: "28px 28px 0" }}>
@@ -30,10 +32,12 @@ export default function Page() {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [pending, setPending] = useState<string | null>(null); // question being generated
+  const [pending, setPending] = useState<string | null>(null);
   const awaitingCapture = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // The CoAgent — useAgent gives us live shared state from STATE_SNAPSHOT
+  // events emitted by AdaptiveAgent (src/lib/agents/adaptive-agent.ts).
   const { agent } = useAgent({
     agentId: "adaptive",
     updates: [UseAgentUpdate.OnStateChanged, UseAgentUpdate.OnRunStatusChanged],
@@ -42,26 +46,44 @@ export default function Page() {
   const status = st?.status ?? "idle";
   const running = agent.isRunning;
 
-  // Conversation persona = persona of the turns on screen; during a run, the
-  // live run's persona (so a persona-change run re-skins immediately).
+  // Conversation persona = persona of the turns on screen; during a live run,
+  // the live run's persona (so a persona-change re-skins immediately).
   const convPersona: Persona | null = turns[0]?.persona ?? null;
   const persona: Persona = (running ? st?.persona : convPersona) ?? convPersona ?? "enduser";
-  // Dynamic theme (add-on): from the live run / latest turn, else static fallback.
-  const liveTheme = running ? st?.theme : turns[turns.length - 1]?.theme;
-  const theme: Theme = liveTheme ?? THEMES[persona];
+
+  // Theme priority: live (from theme-agent during the run) → last turn's
+  // captured theme → static fallback. This lets the page background morph as
+  // soon as the parallel pick_theme node finishes, even before the blocks
+  // are ready.
+  const liveTheme = st?.theme;
+  const lastTurnTheme = turns.length > 0 ? turns[turns.length - 1].theme : undefined;
+  const theme: Theme = (running ? liveTheme : lastTurnTheme) ?? lastTurnTheme ?? THEMES[persona];
 
   // Capture a finished run into the conversation (once per submit).
   useEffect(() => {
-    if (status === "done" && awaitingCapture.current && st?.request === pending && (st?.blocks?.length ?? 0) > 0) {
-      const turn: Turn = { request: st!.request!, persona: st!.persona!, blocks: [...st!.blocks!], theme: st?.theme };
+    if (
+      status === "done" &&
+      awaitingCapture.current &&
+      st?.request === pending &&
+      (st?.blocks?.length ?? 0) > 0 &&
+      st?.theme
+    ) {
+      const turn: Turn = {
+        request: st.request!,
+        persona: st.persona!,
+        blocks: [...st.blocks!],
+        theme: st.theme,
+      };
       setTurns((prev) => [...prev, turn]);
       awaitingCapture.current = false;
       setPending(null);
     }
-  }, [status, st?.blocks, st?.request, st?.theme, pending]);
+  }, [status, st?.blocks, st?.request, st?.theme, st?.persona, pending]);
 
   // Auto-scroll to the newest content (ChatGPT behavior).
-  useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [turns.length, pending, status]);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [turns.length, pending, status]);
 
   const submit = useCallback(async () => {
     const q = input.trim();
@@ -74,7 +96,7 @@ export default function Page() {
     if (cur === null) {
       runPersona = detected ?? "enduser";            // first turn
     } else if (detected && detected !== cur) {
-      runPersona = detected;                          // PERSONA CHANGE → clear page
+      runPersona = detected;                          // persona change → clear page
       setTurns([]);
     } else {
       runPersona = cur;                               // follow-up → stay, keep context
@@ -133,20 +155,17 @@ export default function Page() {
       ) : (
         <>
           <div ref={scrollRef} style={{ flex: 1, overflowY: "auto" }}>
-            {turns.map((t, i) => {
-              const tt = t.theme ?? THEMES[t.persona];
-              return (
-                <div key={i} style={{ borderTop: i > 0 ? `1px solid ${tt.rule}` : undefined, animation: "fade 0.4s ease both" }}>
-                  <QuestionHeader text={t.request} theme={tt} />
-                  <Renderer persona={t.persona} blocks={t.blocks} theme={t.theme} />
-                </div>
-              );
-            })}
+            {turns.map((t, i) => (
+              <div key={i} style={{ borderTop: i > 0 ? `1px solid ${t.theme.rule}` : undefined, animation: "fade 0.4s ease both" }}>
+                <QuestionHeader text={t.request} theme={t.theme} />
+                <Renderer persona={t.persona} blocks={t.blocks} theme={t.theme} />
+              </div>
+            ))}
 
             {running && (
               <div style={{ borderTop: turns.length > 0 ? `1px solid ${theme.rule}` : undefined }}>
                 <QuestionHeader text={pending ?? ""} theme={theme} />
-                <div style={{ minHeight: "32vh", display: "grid", placeItems: "center", color: theme.accent, fontFamily: "'JetBrains Mono',monospace", fontSize: 14, animation: "pulse 1.4s ease-in-out infinite" }}>
+                <div style={{ minHeight: "32vh", display: "grid", placeItems: "center", color: theme.primary, fontFamily: "'JetBrains Mono',monospace", fontSize: 14, animation: "pulse 1.4s ease-in-out infinite" }}>
                   {STATUS_LABEL[status] ?? "running agents…"}
                 </div>
               </div>

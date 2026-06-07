@@ -98,7 +98,7 @@ export function DiagramFlow({ nodes, edges, theme }: { nodes: DiagramNode[]; edg
         const lines = wrap(n.label);
         return (
           <g key={n.id}>
-            <rect x={p.x} y={p.y} width={W} height={H} rx={10} fill={theme.surface} stroke={theme.accent} strokeWidth={1.5} />
+            <rect x={p.x} y={p.y} width={W} height={H} rx={10} fill={theme.surface} stroke={theme.primary} strokeWidth={1.5} />
             <text x={p.x + W / 2} y={p.y + H / 2} fill={theme.ink} fontSize={13} fontFamily={theme.fontBody}
               textAnchor="middle" dominantBaseline="middle">
               {lines.map((ln, k) => (

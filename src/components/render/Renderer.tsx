@@ -52,11 +52,17 @@ export function Renderer({
       ))}
       <div style={{ background: t.bg, minHeight: 520, padding: "44px 28px", transition: "background 0.4s ease" }}>
         <div style={{ maxWidth: t.measure, margin: "0 auto" }}>
-          {blocks.map((block, i) => (
-            <div key={i} style={{ animation: "fade 0.45s ease both", animationDelay: `${i * 0.06}s` }}>
-              <Block block={block} theme={t} />
-            </div>
-          ))}
+          {(() => {
+            // Drop-cap is opt-in per theme (journalist), and only renders on
+            // the FIRST prose block. The renderer is the only place that
+            // knows the index, so we compute it here and pass it down.
+            const firstProseIdx = blocks.findIndex((b) => b.type === "prose");
+            return blocks.map((block, i) => (
+              <div key={i} style={{ animation: "fade 0.45s ease both", animationDelay: `${i * 0.06}s` }}>
+                <Block block={block} theme={t} isFirstProse={i === firstProseIdx} />
+              </div>
+            ));
+          })()}
         </div>
       </div>
     </>

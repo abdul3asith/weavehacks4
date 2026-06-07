@@ -19,7 +19,7 @@ export function CopyButton({ text, theme }: { text: string; theme: Theme }) {
       }}
       style={{
         cursor: "pointer", border: `1px solid ${theme.rule}`, borderRadius: 6,
-        background: "transparent", color: copied ? theme.accent : theme.muted,
+        background: "transparent", color: copied ? theme.primary : theme.muted,
         fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, padding: "3px 9px",
       }}
     >
