@@ -67,6 +67,10 @@ const PALETTE: Record<Persona, string> = {
   // 'visual' omitted on purpose — its graphic is hardcoded in the locked
   // render layer and can't adapt to the topic, so we never emit it.
   enduser: "heading, prose, analogy, faq, diagram",
+  designer: "heading, prose, analogy, keypoints, diagram",
+  journalist: "heading, byline, prose, callout, references",
+  student: "heading, prose, steps, faq, diagram",
+  marketer: "heading, tldr, keypoints, table, links",
 };
 
 // Normalize the LLM-facing shapes into exact ui-contract Block values.

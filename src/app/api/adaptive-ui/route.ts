@@ -1,9 +1,7 @@
 import { initWeave } from "@/lib/weave";
 import { orchestrate } from "@/lib/agents/orchestrator";
 import { detectPersona } from "@/lib/detect-persona";
-import type { Persona } from "@/lib/ui-contract";
-
-const PERSONAS: Persona[] = ["researcher", "developer", "business", "enduser"];
+import { PERSONAS, type Persona } from "@/lib/ui-contract";
 
 // POST { request: string, persona?: Persona } -> { persona, blocks }
 // Runs the traced 3-agent pipeline server-side (keys never reach the client).

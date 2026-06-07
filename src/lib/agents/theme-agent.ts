@@ -37,19 +37,43 @@ const ThemeS = z.object({
   body: FontPick,
   display: FontPick,
   measure: z.number().int().min(560).max(820),
+  // Typography decisions previously hardcoded in Block.tsx as persona ternaries.
+  // The agent now picks these per persona archetype + topic; static THEMES
+  // entries supply fallback values.
+  headingSize: z.number().int().min(24).max(56),
+  headingWeight: z.number().int().min(400).max(900),
+  headingLetterSpacing: z.string().regex(/^-?(0|0?\.\d+em)$/, "must be '0' or an em offset like '-0.02em'"),
+  headingMarginBottom: z.number().int().min(0).max(48),
+  // "$ " for developer-style prompt prefix, "" for everything else. Kept short
+  // so the agent can leave it empty by default.
+  headingPrefix: z.string().max(4),
+  subtitleSize: z.number().int().min(12).max(22),
+  subtitleItalic: z.boolean(),
+  // Researcher-style 1px rule under the heading.
+  headerDivider: z.boolean(),
+  proseSize: z.number().min(13).max(22),
+  proseLineHeight: z.number().min(1.3).max(2.0),
 });
 
 // Per-persona UX heuristics. The agent gets these inline in the system prompt
 // so each persona keeps its archetype while the topic inflects the palette.
 const HEURISTICS: Record<Persona, string> = {
   researcher:
-    "Editorial, archival, journal-like. Body font is a serif (e.g. Newsreader, Lora, Source Serif Pro, EB Garamond). Background is parchment/cream/ivory (light, slightly warm). Ink is near-black. Accent is restrained — deep burgundy, forest green, oxblood, cobalt — never neon. Measure 640–700. Topic may color the palette (biology → muted greens; physics → cool slates; humanities → warm umbers); never break the editorial feel.",
+    "Editorial, archival, journal-like. Body font is a serif (e.g. Newsreader, Lora, Source Serif Pro, EB Garamond). Background is parchment/cream/ivory (light, slightly warm). Ink is near-black. Accent is restrained — deep burgundy, forest green, oxblood, cobalt — never neon. Measure 640–700. headingSize 36–40, headingWeight 600, headingLetterSpacing '0', headerDivider true, subtitleItalic true, proseSize 17–18, proseLineHeight 1.65–1.75, headingPrefix ''. Topic may color the palette (biology → muted greens; physics → cool slates; humanities → warm umbers); never break the editorial feel.",
   developer:
-    "Terminal / IDE aesthetic. Body font is monospace (e.g. JetBrains Mono, Fira Code, IBM Plex Mono, Space Mono). Background is near-black or very dark navy. Ink is light (#d6deeb-ish). Accent is a bright but legible neon — green, cyan, magenta, amber. Measure 700–760. Topic may shift the accent hue but the dark + mono base is non-negotiable.",
+    "Terminal / IDE aesthetic. Body font is monospace (e.g. JetBrains Mono, Fira Code, IBM Plex Mono, Space Mono). Background is near-black or very dark navy. Ink is light (#d6deeb-ish). Accent is a bright but legible neon — green, cyan, magenta, amber. Measure 700–760. headingSize 28–32, headingWeight 600, headingLetterSpacing '-0.01em', headingPrefix '$ ', headerDivider false, subtitleItalic false, proseSize 15–16, proseLineHeight 1.6–1.7. Topic may shift the accent hue but the dark + mono base is non-negotiable.",
   business:
-    "Crisp executive deck / FT-style. Body font is geometric or neo-grotesk sans (e.g. Archivo, Inter, IBM Plex Sans, Manrope). Background is very light (off-white / pale grey). Ink is near-black navy. Accent MUST be a dark color (blues, deep greens, charcoal) — luminance below 0.5 — because the tldr panel renders white text on the accent. Measure 720–780.",
+    "Crisp executive deck / FT-style. Body font is geometric or neo-grotesk sans (e.g. Archivo, Inter, IBM Plex Sans, Manrope). Background is very light (off-white / pale grey). Ink is near-black navy. Accent MUST be a dark color (blues, deep greens, charcoal) — luminance below 0.5 — because the tldr panel renders white text on the accent. Measure 720–780. headingSize 36–40, headingWeight 800, headingLetterSpacing '-0.02em', headerDivider false, subtitleItalic false, proseSize 15–16, proseLineHeight 1.5–1.65, headingPrefix ''.",
   enduser:
-    "Friendly, illustrative, soft. Body font is a rounded humanist sans (e.g. Nunito, Quicksand, Comfortaa); display font is a rounded display (e.g. Fredoka, Baloo 2, Lilita One). Background is a warm pastel linear-gradient. Ink is a soft dark (warm plum / brown / deep teal). Accent is vibrant and warm (coral, peach, candy pink). Measure 600–660. fontDisplay should differ from fontBody.",
+    "Friendly, illustrative, soft. Body font is a rounded humanist sans (e.g. Nunito, Quicksand, Comfortaa); display font is a rounded display (e.g. Fredoka, Baloo 2, Lilita One). Background is a warm pastel linear-gradient. Ink is a soft dark (warm plum / brown / deep teal). Accent is vibrant and warm (coral, peach, candy pink). Measure 600–660. fontDisplay should differ from fontBody. headingSize 38–42, headingWeight 600–700, headingMarginBottom 8–12, headerDivider false, subtitleItalic false, proseSize 17–19, proseLineHeight 1.6–1.7, headingPrefix ''.",
+  designer:
+    "Editorial gallery / portfolio. Display font is a high-contrast serif or grotesk display (Playfair Display, Cormorant Garamond, DM Serif Display, Bodoni Moda); body is a clean sans (Inter, DM Sans, Manrope). Background is cream/bone/off-white. Ink is near-black. Accent is a single vivid statement color tied to the topic (cobalt, magenta, ultramarine, rust). Measure 680–720. headingSize 42–48, headingWeight 700, headingLetterSpacing '-0.02em', headingMarginBottom 20–24, subtitleItalic true, headerDivider false, proseSize 16–17, proseLineHeight 1.55–1.7, headingPrefix ''. Display font must differ from body font.",
+  journalist:
+    "Newspaper / longform magazine. Body font is a workhorse serif (Lora, Source Serif Pro, Crimson Text, PT Serif). Background is newsprint off-white. Ink is near-black. Accent is a single ink color (deep navy, oxblood, forest) — never neon. Measure 660–700. headingSize 36–42, headingWeight 700, headerDivider true, subtitleItalic true (dek/standfirst feel), proseSize 17–18, proseLineHeight 1.65–1.8, headingPrefix ''. Topic may shift the accent but the editorial feel and serif body are non-negotiable.",
+  student:
+    "Notebook / study-notes aesthetic. Body font is a friendly humanist sans (Quicksand, Nunito, Comfortaa); display font is handwriting-style (Caveat, Kalam, Patrick Hand, Shadows Into Light). Background is pale notebook paper (very warm off-white). Ink is a soft dark brown/black. Accent is a highlighter color — amber, marigold, lime, sky — but dark enough that white text on it stays legible (luminance < 0.55). Measure 640–680. headingSize 38–44, headingWeight 700, headingMarginBottom 10–14, headerDivider false, subtitleItalic false, proseSize 16–17, proseLineHeight 1.7–1.8, headingPrefix ''. Display font must differ from body font.",
+  marketer:
+    "Bold brand deck / product launch. Body and display are the same geometric sans (Space Grotesk, DM Sans, Inter, Manrope) for tight identity. Background is pure white or near-white. Ink is near-black. Accent is a single saturated brand color (burnt orange, magenta, electric purple, kelly green) — luminance below 0.55 so white text on the tldr accent panel stays legible. Measure 720–760. headingSize 40–46, headingWeight 800, headingLetterSpacing '-0.025em', headerDivider false, subtitleItalic false, proseSize 15–17, proseLineHeight 1.5–1.65, headingPrefix ''.",
 };
 
 function fontStack({ family, fallback }: { family: string; fallback: string }) {
@@ -115,7 +139,8 @@ export const runThemeAgent = weave.op(
             "- bgSolid is a solid-color twin of bg; if bg is a gradient, choose a representative middle color.\n" +
             "- rule is the 1px border / divider color; keep it close to bg/surface.\n" +
             "- accent is the highlight color used for links, callouts, code chips, and headings flourishes.\n" +
-            "- Pick Google Fonts that actually exist (we load them dynamically). Provide the bare family name (e.g. \"Lora\", \"Space Grotesk\") plus an appropriate CSS fallback family.",
+            "- Pick Google Fonts that actually exist (we load them dynamically). Provide the bare family name (e.g. \"Lora\", \"Space Grotesk\") plus an appropriate CSS fallback family.\n" +
+            "- Typography: pick headingSize (px), headingWeight (CSS 400–900), headingLetterSpacing (CSS string like '-0.02em' or '0'), headingMarginBottom (px), headingPrefix (a short string drawn before the h1 title in the accent color — '' for most personas, '$ ' for developer), subtitleSize (px), subtitleItalic (boolean), headerDivider (whether to draw a 1px rule under the heading), proseSize (px), proseLineHeight (unitless). Match the persona archetype ranges above.",
         },
         { role: "user", content: request },
       ],
@@ -156,6 +181,16 @@ export const runThemeAgent = weave.op(
       fontBody: fontStack(parsed.body),
       fontDisplay: fontStack(parsed.display),
       measure: parsed.measure,
+      headingSize: parsed.headingSize,
+      headingWeight: parsed.headingWeight,
+      headingLetterSpacing: parsed.headingLetterSpacing,
+      headingMarginBottom: parsed.headingMarginBottom,
+      headingPrefix: parsed.headingPrefix,
+      subtitleSize: parsed.subtitleSize,
+      subtitleItalic: parsed.subtitleItalic,
+      headerDivider: parsed.headerDivider,
+      proseSize: parsed.proseSize,
+      proseLineHeight: parsed.proseLineHeight,
     };
     await setCachedTheme(persona, theme);
     return theme;

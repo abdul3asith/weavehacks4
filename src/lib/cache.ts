@@ -5,7 +5,7 @@ import type { Theme } from "@/components/render/Theme";
 // Bump SCHEMA_VERSION whenever the Theme type in src/components/render/Theme.ts
 // gains or loses a field. Stale entries from a previous shape would deserialize
 // wrong and reach the renderer.
-const SCHEMA_VERSION = "v1";
+const SCHEMA_VERSION = "v2";
 
 function key(persona: Persona): string {
   return `theme:${SCHEMA_VERSION}:${persona}`;

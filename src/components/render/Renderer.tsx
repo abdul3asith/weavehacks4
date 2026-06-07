@@ -54,7 +54,7 @@ export function Renderer({
         <div style={{ maxWidth: t.measure, margin: "0 auto" }}>
           {blocks.map((block, i) => (
             <div key={i} style={{ animation: "fade 0.45s ease both", animationDelay: `${i * 0.06}s` }}>
-              <Block block={block} theme={t} persona={persona} />
+              <Block block={block} theme={t} />
             </div>
           ))}
         </div>
