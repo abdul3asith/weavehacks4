@@ -1,8 +1,14 @@
-// Takes { request, level }, decides specialists + which UI to emit.
-// Wrap with weave.op() in Step 2 so the whole tree shows in Weave.
-export type Level = "7th-grade" | "masters";
-export interface OrchestratorInput { request: string; level: Level; }
+import { Agent } from "@openai/agents";
+import { contentAgent, uiAgent } from "./specialists";
 
-export async function runOrchestrator(_input: OrchestratorInput) {
-  throw new Error("not implemented"); // Step 2: call content agent
-}
+export const orchestrator = Agent.create({
+  name: "orchestrator",
+  model: "gpt-4.1-mini",
+  handoffs: [contentAgent, uiAgent],
+  instructions: [
+    "You are the router for an adaptive-UI pipeline.",
+    "Hand off to content-agent first; it will write the answer and then hand",
+    "off to ui-generator, which produces a UISpec. Do not answer the user",
+    "directly yourself.",
+  ].join(" "),
+});
