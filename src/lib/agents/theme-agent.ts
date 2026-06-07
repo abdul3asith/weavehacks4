@@ -4,6 +4,7 @@ import type { Persona } from "../ui-contract";
 import { openai, MODEL } from "../openai";
 import { weave } from "../weave";
 import { THEMES, type Theme } from "@/components/render/Theme";
+import { getCachedTheme, setCachedTheme } from "../cache";
 
 export interface ThemeInput {
   request: string;
@@ -90,6 +91,9 @@ function contrast(a: string, b: string): number {
 // the orchestrator can fall back to the static THEMES[persona].
 export const runThemeAgent = weave.op(
   async function runThemeAgent({ request, persona }: ThemeInput): Promise<Theme> {
+    const hit = await getCachedTheme(persona);
+    if (hit) return hit;
+
     const completion = await openai.beta.chat.completions.parse({
       model: MODEL,
       temperature: 0.7,
@@ -140,7 +144,7 @@ export const runThemeAgent = weave.op(
       );
     }
 
-    return {
+    const theme: Theme = {
       label: THEMES[persona].label,
       bg: parsed.bg,
       bgSolid: parsed.bgSolid,
@@ -153,6 +157,8 @@ export const runThemeAgent = weave.op(
       fontDisplay: fontStack(parsed.display),
       measure: parsed.measure,
     };
+    await setCachedTheme(persona, theme);
+    return theme;
   },
   { name: "theme-agent" }
 );

@@ -16,6 +16,8 @@ Required env vars (loaded from `.env` / `.env.local`, never imported from client
 - `OPENAI_API_KEY` — used by the agent pipeline (`gpt-4o-mini`) and the CopilotKit runtime (`gpt-4.1-mini`)
 - `WANDB_API_KEY` — for Weave tracing
 - `WEAVE_PROJECT` (optional) — Weave project name, defaults to `weavehacks4`
+- `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` (optional) — Upstash HTTP credentials for the theme-agent cache. When unset, the cache no-ops and every theme request hits OpenAI as before.
+- `THEME_CACHE_TTL_SECONDS` (optional) — TTL for cached themes; defaults to 86400 (1 day).
 
 ## Architecture
 
@@ -61,6 +63,16 @@ Two deliberate divergences exist between the LLM-facing Zod schema in `ui-compos
 - **`bgSolid` field on `Theme`.** A solid-hex twin of `bg`, used wherever a gradient breaks. Specifically `DiagramFlow.tsx` uses it for the edge-label halo, because SVG `stroke` doesn't accept `linear-gradient(...)`. All static themes set both.
 
 **Scope-honest caveat:** the theme agent picks colors, fonts, and measure, but plenty of styling inside `Block.tsx` is still hardcoded — the syntax-highlight palette (`#ff7edb` / `#5ef2a0` / `#6cb6ff`), terminal traffic-light chrome, and the `#fff` text drawn on `theme.ink` (table header) and `theme.accent` (tldr). A fully adaptive theme would move those into the contract or compute them from luminance; this PR did not.
+
+### Theme cache (Upstash)
+
+`src/lib/cache.ts` wraps `@upstash/redis` with two helpers — `getCachedTheme(persona)` and `setCachedTheme(persona, theme)` — that `theme-agent.ts` consults at the top of `runThemeAgent` and writes to after the contrast gate passes.
+
+- **Key shape: `theme:v1:${persona}`.** Persona-only on purpose: max hit rate at the cost of topic-tinting within a TTL window. Within the TTL, every researcher request returns the same colors/fonts/measure (whatever the first dynamic call produced). Cross-persona isolation is preserved.
+- **Schema version in the key.** Bump `SCHEMA_VERSION` in `src/lib/cache.ts` whenever the `Theme` type in `src/components/render/Theme.ts` gains or loses a field — stale entries from a previous shape would deserialize wrong and reach the renderer.
+- **Optional dep.** If `UPSTASH_REDIS_REST_URL` / `_TOKEN` are unset, the lazy singleton in `cache.ts` returns `null` and both helpers no-op. The pipeline runs exactly as before. Read/write errors are caught and logged (`[theme-cache] read failed:` / `[theme-cache] write failed:`); they never break a request.
+- **TTL via env.** `THEME_CACHE_TTL_SECONDS` defaults to 86400 (1 day).
+- **Shell-env shadowing** (the `OPENAI_API_KEY` trap from PR #6) applies to the Upstash vars too. If you ever see stale-token errors after rotating, `unset UPSTASH_REDIS_REST_TOKEN` in your shell or launch with `env -u UPSTASH_REDIS_REST_TOKEN npm run dev`.
 
 ### Renderer
 
