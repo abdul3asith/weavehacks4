@@ -15,12 +15,14 @@ export const AdaptiveState = Annotation.Root({
   // Optional steering from chat commands (Phase C).
   depth: Annotation<"simpler" | "deeper" | undefined>(),
   directives: Annotation<string[] | undefined>(),
+  // Prior questions in the same conversation (for follow-up context).
+  history: Annotation<string[] | undefined>(),
 });
 
 type S = typeof AdaptiveState.State;
 
 async function contentNode(state: S): Promise<Partial<S>> {
-  const content = await runContentAgent({ request: state.request, persona: state.persona, depth: state.depth });
+  const content = await runContentAgent({ request: state.request, persona: state.persona, depth: state.depth, history: state.history });
   return { content, status: "composing" };
 }
 

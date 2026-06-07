@@ -48,6 +48,7 @@ export class AdaptiveAgent extends AbstractAgent {
             personaOverride?: Persona;
             depth?: "simpler" | "deeper";
             directives?: string[];
+            history?: string[];
           };
           const lastUser = [...input.messages].reverse().find((m) => m.role === "user");
           const request = String(fp.topic ?? lastUser?.content ?? "").trim() || "explain langchain";
@@ -62,7 +63,7 @@ export class AdaptiveAgent extends AbstractAgent {
 
           // Stream LangGraph node updates -> push a new state snapshot per node.
           const stream = await adaptiveGraph.stream(
-            { request, persona, status: "writing", content: "", blocks: [], depth: fp.depth, directives: fp.directives },
+            { request, persona, status: "writing", content: "", blocks: [], depth: fp.depth, directives: fp.directives, history: fp.history },
             { streamMode: "updates" }
           );
           for await (const chunk of stream) {
