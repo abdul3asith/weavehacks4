@@ -5,6 +5,8 @@ import { weave } from "../weave";
 export interface ContentInput {
   request: string;
   persona: Persona;
+  // Prior questions in the same conversation (for follow-up context).
+  history?: string[];
 }
 
 // How each persona's explanation should *read*. The ui-composer downstream
@@ -31,7 +33,7 @@ const VOICE: Record<Persona, string> = {
 // Writes the explanation in the target persona's voice. Wrapped with weave.op
 // so it appears as a child span under the orchestrator in the Weave trace tree.
 export const runContentAgent = weave.op(
-  async function runContentAgent({ request, persona }: ContentInput): Promise<string> {
+  async function runContentAgent({ request, persona, history }: ContentInput): Promise<string> {
     const res = await openai.chat.completions.create({
       model: MODEL,
       temperature: 0.5,
@@ -43,7 +45,11 @@ export const runContentAgent = weave.op(
             "Write a self-contained explanation answering the user's request. " +
             "Cover what it is, why it matters, and how it works. " +
             "Return prose only — no markdown headers, no block formatting. " +
-            "Another system will lay this out into UI components.",
+            "Another system will lay this out into UI components." +
+            (history && history.length
+              ? ` This is a follow-up in an ongoing conversation. Earlier the user asked: "${history.join('"; "')}". ` +
+                "Answer the NEW request in that context — assume they've seen the earlier material and do not repeat it."
+              : ""),
         },
         { role: "user", content: request },
       ],

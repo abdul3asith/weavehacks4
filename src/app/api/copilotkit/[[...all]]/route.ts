@@ -3,14 +3,18 @@ import {
   BuiltInAgent,
   createCopilotEndpoint,
 } from "@copilotkit/runtime/v2";
+import { AdaptiveAgent } from "@/lib/agents/adaptive-agent";
 
-// Default agent backing <CopilotKit>. Uses OpenAI (OPENAI_API_KEY in .env.local).
+// "default" = generic chat (BuiltInAgent, OpenAI). "adaptive" = our in-process
+// LangGraph CoAgent that streams the persona UI as shared state (STATE_SNAPSHOT
+// events). The page reads `adaptive` state directly via useAgent("adaptive").
 const runtime = new CopilotRuntime({
   agents: {
     default: new BuiltInAgent({
       model: "openai/gpt-4.1-mini",
       apiKey: process.env.OPENAI_API_KEY,
     }),
+    adaptive: new AdaptiveAgent(),
   },
 });
 
