@@ -7,6 +7,8 @@ import { weave } from "../weave";
 export interface ComposerInput {
   persona: Persona;
   content: string;
+  // Optional layout steering from chat commands (e.g. "include a diagram").
+  directives?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -126,7 +128,11 @@ function toBlocks(raw: RawBlock[]): Block[] {
 // Turns the persona's explanation into an ordered Block[] from the FIXED menu.
 // Wrapped with weave.op so it nests under the orchestrator in the trace tree.
 export const runUIComposer = weave.op(
-  async function runUIComposer({ persona, content }: ComposerInput): Promise<Block[]> {
+  async function runUIComposer({ persona, content, directives }: ComposerInput): Promise<Block[]> {
+    const directiveNote =
+      directives && directives.length
+        ? " Additional layout directives from the user — follow them: " + directives.join("; ") + ". "
+        : "";
     const completion = await openai.beta.chat.completions.parse({
       model: MODEL,
       temperature: 0.3,
@@ -154,7 +160,8 @@ export const runUIComposer = weave.op(
               ? "Include at least one 'code' block with a concrete, runnable snippet. "
               : "") +
             "Always start with a heading. Use the explanation's real content — " +
-            "do not summarize it away. Aim for 4–7 blocks.",
+            "do not summarize it away. Aim for 4–7 blocks." +
+            directiveNote,
         },
         { role: "user", content },
       ],

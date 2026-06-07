@@ -9,6 +9,11 @@ export interface ContentInput {
   history?: string[];
 }
 
+const DEPTH_NOTE: Record<NonNullable<ContentInput["depth"]>, string> = {
+  simpler: " Pitch this NOTICEABLY simpler than usual: shorter sentences, everyday words, fewer concepts, no jargon.",
+  deeper: " Go DEEPER than usual: more technical precision, edge cases, trade-offs, and nuance.",
+};
+
 // How each persona's explanation should *read*. The ui-composer downstream
 // turns this prose into persona-appropriate blocks; here we only set voice.
 const VOICE: Record<Persona, string> = {

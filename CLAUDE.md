@@ -4,107 +4,52 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @AGENTS.md
 
-## Commands
+# WeaveHacks Adaptive UI
 
-- `npm run dev` — start the dev server (Next.js, default port 3000)
-- `npm run build` — production build
-- `npm run start` — run the production build
-- `npm run lint` — ESLint (flat config in `eslint.config.mjs`, extends `eslint-config-next/core-web-vitals` + `/typescript`)
-- No test runner is configured.
+One request → a radically different UI per detected **persona** (8: researcher, developer, business, enduser, designer, journalist, student, marketer — `src/lib/ui-contract.ts` `PERSONAS`). The interface re-skins (layout, components, colors, fonts) to match the audience. Local-only, no auth.
 
-Required env vars (loaded from `.env` / `.env.local`, never imported from client code):
-- `OPENAI_API_KEY` — used by the agent pipeline (`gpt-4o-mini`) and the CopilotKit runtime (`gpt-4.1-mini`)
-- `WANDB_API_KEY` — for Weave tracing
-- `WEAVE_PROJECT` (optional) — Weave project name, defaults to `weavehacks4`
-- `REDIS_URL` (optional) — connection string for the theme-agent cache, e.g. `rediss://default:<password>@<host>:<port>` from Redis Cloud. When unset, the cache no-ops and every theme request hits OpenAI as before.
-- `THEME_CACHE_TTL_SECONDS` (optional) — TTL for cached themes; defaults to 86400 (1 day).
+Sponsors: **Weave** (observability), **CopilotKit** (frontend/agent bridge), **LangGraph** (orchestration), **Redis** (theme cache). Default to the latest Claude models when adding AI.
 
-## Architecture
+## Phase 1 — the generation pipeline (the spine)
 
-The app is a single-input "adaptive UI" demo: one prompt produces a persona-specific layout chosen from a fixed component menu. Four personas exist — `researcher | developer | business | enduser` — defined in `src/lib/ui-contract.ts`.
+`request + persona → { content-agent + theme-agent } → ui-composer → Block[] + Theme → <Renderer>`
 
-### Request flow
+- **`src/lib/ui-contract.ts`** — the FROZEN component menu: `Block` discriminated union (heading, prose, callout, references, terminal, code, steps, links, tldr, keypoints, table, footnote, analogy, faq, diagram, …) + `PERSONAS`/`Persona`. The contract the composer must emit.
+- **`src/lib/agents/content-agent.ts`** — `runContentAgent({request, persona, depth?, history?})` → persona-voiced prose. `gpt-4o-mini`.
+- **`src/lib/agents/ui-composer.ts`** — `runUIComposer({persona, content, directives?})` → `Block[]` via **OpenAI structured outputs** (`zodResponseFormat`). Strict schema + `toBlocks()` → the model can only emit valid, designed components.
+- **`src/lib/agents/theme-agent.ts`** (add-on) — `runThemeAgent({request, persona})` → a topic-aware **`Theme`** (colors, fonts, typography, `measure`). **Redis-cached** via `src/lib/cache.ts` (`getCachedTheme`/`setCachedTheme`); no-ops when `REDIS_URL` unset. Falls back to static `THEMES[persona]` on error.
+- **`src/lib/agents/orchestrator.ts`** — `orchestrate({request, persona, depth?, directives?})` runs **theme-agent in parallel** with content→composer, returns `{ blocks, theme }`. Used by the fallback route `src/app/api/adaptive-ui/route.ts`.
+- **`src/components/render/`** — `Renderer.tsx` (walks `Block[]`, applies a dynamic `theme` prop, injects the theme's Google fonts via `<link>`; falls back to `THEMES[persona]`), `Block.tsx` (`{block, theme}`), `Theme.ts` (`Theme` type + 8 static `THEMES`), `DiagramFlow.tsx` (flowcharts from **structured nodes/edges** — SVG, no text DSL → no "syntax error").
+- Every agent fn is `weave.op()`-wrapped → nested trace `orchestrate → theme-agent + content-agent + ui-composer`. `src/lib/weave.ts` + `src/lib/openai.ts` (one shared `weave.wrapOpenAI`).
 
-1. `src/app/page.tsx` (client) posts `{ request, persona }` to `POST /api/adaptive-ui`.
-2. `src/app/api/adaptive-ui/route.ts` calls `initWeave()` then `orchestrate({ request, persona })`.
-3. `src/lib/agents/orchestrator.ts` runs three agents, all wrapped in `weave.op`. `theme-agent` is kicked off at the top of `orchestrate` in parallel; `content-agent` then `ui-composer` run sequentially. Trace tree:
+## Phase 2 — the live agent path: CopilotKit → A2UI → LangGraph → agent
 
-   ```
-   orchestrate
-     ├─ theme-agent           (parallel)
-     └─ content-agent
-          └─ ui-composer      (sequential)
-   ```
+What the running page actually uses (the `/api/adaptive-ui` route is the fallback).
 
-   - `content-agent.ts` — writes prose in the persona's voice (plain prose, no markdown).
-   - `ui-composer.ts` — converts prose into an ordered `Block[]` via OpenAI structured output (Zod schema + `zodResponseFormat`).
-   - `theme-agent.ts` — picks a `Theme` (colors, fonts, measure) tuned to persona + topic. Wall time stays ≈ `max(theme, content+composer)`.
-4. The route returns `{ persona, blocks, theme }`; `src/components/render/Renderer.tsx` applies the theme and renders the blocks.
+```
+Browser ──CopilotKit──▶ A2UI / AG-UI ──LangGraph──▶ agents ──▶ {blocks, theme} ──▶ themed page
+useAgent("adaptive")    AdaptiveAgent      StateGraph      content+composer+theme    Renderer
+runAgent(forwardedProps) STATE_SNAPSHOT    write_content / pick_theme (parallel)     whole page re-skins
+```
 
-`/preview?q=...&persona=...` (`src/app/preview/page.tsx`) is a server component with `dynamic = "force-dynamic"` that runs the same pipeline — handy for verifying generation without the chat UI.
+1. **CopilotKit (v2)** — `src/components/CopilotProvider.tsx` (`CopilotKitProvider`, no chat popup) + v2 runtime in `src/app/api/copilotkit/[[...all]]/route.ts` (`CopilotRuntime` + `createCopilotEndpoint`; agents `default` + `adaptive`). The page uses **`useAgent("adaptive")`** + **`runAgent({ forwardedProps })`** with steering `topic`/`personaOverride`/`depth`/`directives`/`history`. Direct call — no LLM tool-calling — so it's reliable.
+2. **A2UI / AG-UI** — `src/lib/agents/adaptive-agent.ts`: `AdaptiveAgent extends AbstractAgent` (`@ag-ui/client`). `run()` emits `RUN_STARTED → STATE_SNAPSHOT(writing) → (composing) → STATE_SNAPSHOT(done, blocks+theme) → TEXT_MESSAGE_* → RUN_FINISHED`. "done" is emitted only after the graph fully drains, so the final snapshot has both blocks and theme. The `STATE_SNAPSHOT` stream IS the shared state the UI renders.
+3. **LangGraph (in-process)** — `src/lib/agents/graph.ts`: `StateGraph` with parallel branches `write_content → compose_ui` and `pick_theme`; channels `{request, persona, status, content, blocks, theme, depth, directives, history}`; `graph.stream({streamMode:"updates"})`. Nodes call the Phase-1 `weave.op` agents (trace preserved). **No LangGraph server** (we don't use `@ag-ui/langgraph`'s `LangGraphAgent` — it needs a `deploymentUrl`).
 
-### The block contract (do not break)
+### Frontend behavior (`src/app/page.tsx`)
+- ChatGPT/Claude-style **continuous multi-turn chat**: turns stack, `history` passed for context.
+- **Persona is sticky**; naming a *different* audience **clears the page** and starts a fresh conversation in the new persona.
+- The whole page background = the (dynamic) theme color; only the floating bottom input keeps a fixed dark color.
 
-`src/lib/ui-contract.ts` defines the **fixed** discriminated-union `Block` types the renderer understands (heading, byline, prose, callout, references, terminal, code, steps, links, tldr, keypoints, table, footnote, analogy, visual, faq, diagram). The ui-composer agent may pick and order blocks but **must not invent new types or fields**.
+## Env vars (server-side only; `.env` / `.env.local`)
+- `OPENAI_API_KEY` — pipeline (`gpt-4o-mini`) + CopilotKit runtime (`gpt-4.1-mini`)
+- `WANDB_API_KEY` — Weave tracing · `WEAVE_PROJECT` (optional, defaults `weavehacks4`)
+- `REDIS_URL` (optional) — theme cache, e.g. `rediss://…` from Redis Cloud; cache no-ops when unset
+- `THEME_CACHE_TTL_SECONDS` (optional) — default 86400
 
-Two deliberate divergences exist between the LLM-facing Zod schema in `ui-composer.ts` and the runtime `Block` types, because OpenAI strict mode is finicky:
-- `prose.runs` is `string[]` to the LLM, widened to `TextRun[]` after parsing.
-- `code` is `{ lang, source: string }` to the LLM, tokenized into `CodeToken[][]` after parsing.
-- Contract-optional fields (`heading.subtitle`, `callout.kind`, terminal line parts, etc.) are `.nullable()` in the schema and re-omitted in `toBlocks()`.
-
-`toBlocks()` in `ui-composer.ts` is the canonical normalizer between the two shapes. The `visual` block is filtered out there — its render in `components/render/Block.tsx` is a hardcoded graphic that can't adapt to arbitrary topics.
-
-### Theme generation
-
-`src/lib/agents/theme-agent.ts` is the third agent. Same shape as `ui-composer` (Zod schema → `openai.beta.chat.completions.parse` with `zodResponseFormat` → `weave.op` wrap). Returns colors, two fonts (any Google Font family name + a CSS fallback enum), and a content measure.
-
-- **Fallback is unconditional.** The orchestrator wraps the call in `.catch(() => THEMES[persona])`, so a theme-agent failure (quota, schema rejection, contrast violation) can never break the pipeline — the static persona theme is used instead.
-- **Catastrophic-only contrast gate.** After parse, the agent computes contrast for ink-on-surface and ink-on-bgSolid. If either is below ratio 3.0 it throws (caught by the orchestrator). We deliberately don't gate on WCAG AA — the existing hand-tuned themes (e.g. `enduser.accent = #ff5d73`) don't pass either, and strict gating would reject good themes.
-- **`bgSolid` field on `Theme`.** A solid-hex twin of `bg`, used wherever a gradient breaks. Specifically `DiagramFlow.tsx` uses it for the edge-label halo, because SVG `stroke` doesn't accept `linear-gradient(...)`. All static themes set both.
-
-**Scope-honest caveat:** the theme agent picks colors, fonts, and measure, but plenty of styling inside `Block.tsx` is still hardcoded — the syntax-highlight palette (`#ff7edb` / `#5ef2a0` / `#6cb6ff`), terminal traffic-light chrome, and the `#fff` text drawn on `theme.ink` (table header) and `theme.accent` (tldr). A fully adaptive theme would move those into the contract or compute them from luminance; this PR did not.
-
-### Theme cache (Redis)
-
-`src/lib/cache.ts` wraps `redis` (node-redis v6) with two helpers — `getCachedTheme(persona)` and `setCachedTheme(persona, theme)` — that `theme-agent.ts` consults at the top of `runThemeAgent` and writes to after the contrast gate passes. Designed for a Redis Cloud connection (TLS, port 6379), but works against any standard Redis instance.
-
-- **Key shape: `theme:v1:${persona}`.** Persona-only on purpose: max hit rate at the cost of topic-tinting within a TTL window. Within the TTL, every researcher request returns the same colors/fonts/measure (whatever the first dynamic call produced). Cross-persona isolation is preserved.
-- **Schema version in the key.** Bump `SCHEMA_VERSION` in `src/lib/cache.ts` whenever the `Theme` type in `src/components/render/Theme.ts` gains or loses a field — stale entries from a previous shape would deserialize wrong and reach the renderer.
-- **`REDIS_URL` format.** Must be a full URI (`rediss://default:<password>@<host>:<port>` for Redis Cloud TLS, or `redis://...` for plain TCP). The bare `<host>:<port>` shown on the Redis Cloud dashboard is **not** sufficient; assemble the full URL with the default user and password from the dashboard.
-- **Optional dep.** If `REDIS_URL` is unset or malformed, the lazy singleton in `cache.ts` stores `null` on `globalThis._themeCacheRedis` and both helpers no-op. The pipeline runs exactly as before. Connect/read/write errors are caught and logged (`[theme-cache] connect failed:` / `read failed:` / `write failed:`); they never break a request.
-- **Hot-reload safety.** The client is cached on `globalThis._themeCacheRedis` so Next.js dev hot reloads don't leak TCP connections — standard node-redis-in-Next.js pattern.
-- **TTL via env.** `THEME_CACHE_TTL_SECONDS` defaults to 86400 (1 day).
-- **Cache hits don't reduce wall-time directly.** Theme-agent runs in parallel with `content-agent → ui-composer` (the longer branch); a cache hit just removes one OpenAI call and shrinks the theme-agent span in Weave. Cost savings are real; latency savings show up only if/when `content-agent` is also cached someday.
-- **Shell-env shadowing** (the `OPENAI_API_KEY` trap from PR #6) applies to `REDIS_URL` too — `unset REDIS_URL` in your shell or launch with `env -u REDIS_URL npm run dev` if you ever see stale-connection errors after rotating.
-
-### Renderer
-
-`src/components/render/Renderer.tsx` is the seam between agent output and the DOM.
-- Accepts an **optional** `theme?: Theme` prop; falls back to `THEMES[persona]` when absent (keeps any static usage working).
-- Loads any Google Font at runtime by rendering `<link rel="stylesheet" precedence="default" href="https://fonts.googleapis.com/css2?family=...&display=swap">` for each unique family in the theme. React 19 hoists these to `<head>` with dedup; `display=swap` means the page renders in the fallback immediately and swaps when the font arrives. This is what lets the theme agent pick any Google Font family, not just the five preloaded in `FONT_IMPORT`.
-- `FONT_IMPORT` in `page.tsx` still loads Newsreader / JetBrains Mono / Archivo / Fredoka / Nunito for the static `THEMES`; the dynamic loader handles everything else.
-
-### Personas
-
-- `src/lib/detect-persona.ts` — keyword-based inference used when the caller doesn't supply a persona.
-- `src/lib/specs.ts` — hardcoded golden-path `Block[]` for the LangChain example, one per persona. Useful as a reference for what well-formed output looks like; not used at runtime.
-- `src/components/render/Theme.ts` — per-persona fonts/colors/measure for the static fallback. Adding a persona requires updates here, in `ui-contract.ts`, in `detect-persona.ts`, in the `PALETTE` map inside `ui-composer.ts`, and in the `HEURISTICS` map inside `theme-agent.ts` (so the agent knows the new persona's archetype).
-
-### Tracing (Weave)
-
-- `src/lib/weave.ts` exposes `initWeave()` (idempotent) and re-exports `weave`. The route handler calls `initWeave()` before each pipeline run.
-- `src/lib/openai.ts` wraps the shared client with `weave.wrapOpenAI`, so every chat completion becomes a child span of the currently active `weave.op`.
-- `next.config.ts` sets `serverExternalPackages: ["weave"]` — Weave's auto-instrumentation breaks under Next's server bundler otherwise. Leave this in place.
-- `src/lib/openai.ts` is server-only. Never import it from a `"use client"` file.
-
-### CopilotKit
-
-- `src/app/layout.tsx` wraps the tree with `<CopilotKit runtimeUrl="/api/copilotkit" useSingleEndpoint={false}>`.
-- `src/app/api/copilotkit/[[...all]]/route.ts` uses the **v2** runtime (`@copilotkit/runtime/v2`) with a default `BuiltInAgent`. It short-circuits `GET /api/copilotkit/threads` with an empty list because react-core probes it on mount and the runtime otherwise returns 422 (no `CopilotKitIntelligence` configured).
-- The page registers a `renderAdaptiveUI` action via `useCopilotAction` so the chat assistant can trigger the same re-skin as the input bar.
-
-### Other conventions
-
-- TypeScript path alias `@/*` → `./src/*`.
-- The `ChatBar` component in `page.tsx` is defined at module scope (outside `Page`) intentionally — putting it inside the component causes the input to lose focus across re-renders.
-- `redis` and `@langchain/core` are listed as dependencies but are not currently wired into the pipeline.
+## Commands & gotchas
+- `npm run dev` / `build` / `start` / `lint`. No test runner. Run `npx tsc --noEmit` after changes.
+- **`@ag-ui/client` + `@ag-ui/core` pinned to `0.0.48`** to match CopilotKit's bundled copy. Any `npm install/uninstall` may re-hoist `0.0.53` and break `tsc` ("two different types named AbstractAgent"). Fix: `npm install -E @ag-ui/client@0.0.48 @ag-ui/core@0.0.48`.
+- `next.config.ts` needs `serverExternalPackages: ["weave"]`.
+- Do NOT install `@openai/agents` (needs zod v4; CopilotKit pins zod v3).
+- The dev server must run from a terminal **with network access** (agents hit OpenAI/W&B/Redis).

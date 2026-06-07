@@ -8,6 +8,8 @@ import { weave } from "../weave";
 export interface OrchestrateInput {
   request: string;
   persona: Persona;
+  depth?: "simpler" | "deeper";
+  directives?: string[];
 }
 
 export interface OrchestrateOutput {
@@ -15,11 +17,11 @@ export interface OrchestrateOutput {
   theme: Theme;
 }
 
-// The pipeline: write persona-voiced content, lay it out into blocks, and
-// pick a topic-aware Theme. Theme has no information dependency on the prose,
-// so we kick it off in parallel with the content→composer chain to keep it
-// off the critical path. Theme failure is caught here and falls back to the
-// static THEMES[persona] so it can never break the pipeline.
+// The pipeline: write persona-voiced content, lay it out into blocks, and pick a
+// topic-aware Theme (add-on). Theme has no dependency on the prose, so it runs in
+// parallel with the content→composer chain and is kept off the critical path.
+// Theme failure falls back to the static THEMES[persona] so it can never break
+// the pipeline. Optional steering (depth/directives) flows from the refine path.
 //
 // Wrapped with weave.op so the trace tree is:
 //   orchestrate
@@ -27,17 +29,14 @@ export interface OrchestrateOutput {
 //     └─ content-agent
 //          └─ ui-composer
 export const orchestrate = weave.op(
-  async function orchestrate({
-    request,
-    persona,
-  }: OrchestrateInput): Promise<OrchestrateOutput> {
+  async function orchestrate({ request, persona, depth, directives }: OrchestrateInput): Promise<OrchestrateOutput> {
     const themeP = runThemeAgent({ request, persona }).catch((e) => {
       console.warn("[orchestrate] theme-agent fallback:", e);
       return THEMES[persona];
     });
-    const content = await runContentAgent({ request, persona });
+    const content = await runContentAgent({ request, persona, depth });
     const [blocks, theme] = await Promise.all([
-      runUIComposer({ persona, content }),
+      runUIComposer({ persona, content, directives }),
       themeP,
     ]);
     return { blocks, theme };

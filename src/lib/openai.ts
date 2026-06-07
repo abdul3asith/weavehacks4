@@ -9,4 +9,4 @@ export const openai = weave.wrapOpenAI(
 );
 
 // Model used by all agents: fast, cheap, supports JSON-schema structured output.
-export const MODEL = "gpt-4o-mini";
+export const MODEL = "gpt-4.1-mini";

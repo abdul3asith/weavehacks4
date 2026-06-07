@@ -3,7 +3,7 @@ import { orchestrate } from "@/lib/agents/orchestrator";
 import { detectPersona } from "@/lib/detect-persona";
 import { PERSONAS, type Persona } from "@/lib/ui-contract";
 
-// POST { request: string, persona?: Persona } -> { persona, blocks }
+// POST { request, persona?, depth?, directives? } -> { persona, blocks }
 // Runs the traced 3-agent pipeline server-side (keys never reach the client).
 export async function POST(req: Request) {
   try {
@@ -17,9 +17,11 @@ export async function POST(req: Request) {
     const persona: Persona = PERSONAS.includes(body.persona)
       ? body.persona
       : detectPersona(request) ?? "enduser";
+    const depth = body.depth === "simpler" || body.depth === "deeper" ? body.depth : undefined;
+    const directives = Array.isArray(body.directives) ? body.directives.filter((d: unknown) => typeof d === "string") : undefined;
 
     await initWeave();
-    const { blocks, theme } = await orchestrate({ request, persona });
+    const { blocks, theme } = await orchestrate({ request, persona, depth, directives });
     return Response.json({ persona, blocks, theme });
   } catch (err) {
     console.error("[adaptive-ui] pipeline failed:", err);
