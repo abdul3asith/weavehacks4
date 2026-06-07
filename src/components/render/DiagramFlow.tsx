@@ -63,7 +63,7 @@ export function DiagramFlow({ nodes, edges, theme }: { nodes: DiagramNode[]; edg
   });
 
   return (
-    <svg viewBox={`0 0 ${svgW} ${svgH}`} width="100%" style={{ maxWidth: svgW, display: "block", margin: "0 auto" }}>
+    <svg viewBox={`0 0 ${svgW} ${svgH}`} width={svgW} height={svgH} style={{ maxWidth: "100%", height: "auto", display: "block", margin: "0 auto" }}>
       <defs>
         <marker id="df-arrow" markerWidth="10" markerHeight="8" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
           <path d="M0,0 L7,3 L0,6 Z" fill={theme.muted} />
