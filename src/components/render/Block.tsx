@@ -1,6 +1,8 @@
 import type { Block as BlockType, Persona, TextRun } from "@/lib/ui-contract";
 import React from "react";
 import type { Theme } from "./Theme";
+import { Mermaid } from "./Mermaid";
+import { CopyButton } from "./CopyButton";
 
 function Runs({ runs, theme }: { runs: TextRun[]; theme: Theme }) {
   return (
@@ -64,7 +66,21 @@ export function Block({ block, theme, persona }: { block: BlockType; theme: Them
         <section style={{ marginTop: 26 }}>
           <div style={{ fontFamily: theme.fontBody, fontVariant: "small-caps", letterSpacing: "0.06em", color: theme.muted, fontSize: 14, borderBottom: `1px solid ${theme.rule}`, paddingBottom: 6, marginBottom: 10 }}>References</div>
           <ol style={{ margin: 0, paddingLeft: 20 }}>
-            {block.items.map((it, i) => <li key={i} style={{ fontFamily: theme.fontBody, color: theme.ink, fontSize: 14.5, lineHeight: 1.5, marginBottom: 7 }}>{it}</li>)}
+            {block.items.map((it, i) => {
+              const text = typeof it === "string" ? it : it.text;
+              const href = typeof it === "string" ? undefined : it.href;
+              return (
+                <li key={i} style={{ fontFamily: theme.fontBody, color: theme.ink, fontSize: 14.5, lineHeight: 1.5, marginBottom: 7 }}>
+                  {text}
+                  {href && (
+                    <>
+                      {" "}
+                      <a href={href} target="_blank" rel="noreferrer" style={{ color: theme.accent, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5 }}>↗ link</a>
+                    </>
+                  )}
+                </li>
+              );
+            })}
           </ol>
         </section>
       );
@@ -89,9 +105,13 @@ export function Block({ block, theme, persona }: { block: BlockType; theme: Them
 
     case "code": {
       const colors: Record<string, string> = { k: "#ff7edb", t: theme.ink, s: "#5ef2a0", fn: "#6cb6ff" };
+      const source = block.tokens.map((line) => line.map(([, txt]) => txt).join("")).join("\n");
       return (
         <div style={{ background: theme.surface, border: `1px solid ${theme.rule}`, borderRadius: 8, margin: "4px 0 18px" }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: theme.muted, padding: "8px 14px", borderBottom: `1px solid ${theme.rule}` }}>{block.lang}</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px", borderBottom: `1px solid ${theme.rule}` }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: theme.muted }}>{block.lang}</span>
+            <CopyButton text={source} theme={theme} />
+          </div>
           <pre style={{ margin: 0, padding: "14px 16px", fontFamily: "'JetBrains Mono', monospace", fontSize: 13.5, lineHeight: 1.7, overflowX: "auto" }}>
             {block.tokens.map((line, i) => (
               <div key={i}>{line.length === 0 ? "\u00A0" : line.map(([cls, txt], j) => <span key={j} style={{ color: colors[cls] }}>{txt}</span>)}</div>
@@ -195,6 +215,18 @@ export function Block({ block, theme, persona }: { block: BlockType; theme: Them
             </div>
           ))}
         </div>
+      );
+
+    case "diagram":
+      return (
+        <figure style={{ margin: "8px 0 20px" }}>
+          <div style={{ background: theme.surface, border: `1px solid ${theme.rule}`, borderRadius: 10, padding: "12px 8px" }}>
+            <Mermaid code={block.code} theme={theme} />
+          </div>
+          {block.caption && (
+            <figcaption style={{ fontFamily: theme.fontBody, color: theme.muted, fontSize: 13, textAlign: "center", marginTop: 8 }}>{block.caption}</figcaption>
+          )}
+        </figure>
       );
 
     default:

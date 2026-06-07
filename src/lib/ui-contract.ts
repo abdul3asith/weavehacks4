@@ -13,12 +13,16 @@ export type CodeToken = [CodeClass, string];
 // Terminal line: prompt / command / output
 export type TerminalLine = { p?: string; c?: string; o?: string };
 
+// A bibliography / reference entry. Plain string (legacy) or a citation with an
+// optional link, so researcher references can be clickable.
+export type Reference = string | { text: string; href?: string };
+
 export type Block =
   | { type: "heading"; title: string; subtitle?: string }
   | { type: "byline"; text: string }
   | { type: "prose"; runs: TextRun[] }
   | { type: "callout"; kind?: string; title: string; body: string }
-  | { type: "references"; items: string[] }
+  | { type: "references"; items: Reference[] }
   | { type: "terminal"; lines: TerminalLine[] }
   | { type: "code"; lang: string; tokens: CodeToken[][] }
   | { type: "steps"; items: string[] }
@@ -29,7 +33,10 @@ export type Block =
   | { type: "footnote"; text: string }
   | { type: "analogy"; emoji: string; title: string; body: string }
   | { type: "visual" }
-  | { type: "faq"; items: { q: string; a: string }[] };
+  | { type: "faq"; items: { q: string; a: string }[] }
+  // Mermaid diagram: flowchart / sequence / ER / mindmap / pie / xychart, etc.
+  // `code` is Mermaid source authored by the agent.
+  | { type: "diagram"; code: string; caption?: string };
 
 export interface UISpec {
   persona: Persona;

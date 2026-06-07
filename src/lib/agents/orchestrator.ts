@@ -1,8 +1,23 @@
-// Takes { request, level }, decides specialists + which UI to emit.
-// Wrap with weave.op() in Step 2 so the whole tree shows in Weave.
-export type Level = "7th-grade" | "masters";
-export interface OrchestratorInput { request: string; level: Level; }
+import type { Block, Persona } from "../ui-contract";
+import { runContentAgent } from "./content-agent";
+import { runUIComposer } from "./ui-composer";
+import { weave } from "../weave";
 
-export async function runOrchestrator(_input: OrchestratorInput) {
-  throw new Error("not implemented"); // Step 2: call content agent
+export interface OrchestrateInput {
+  request: string;
+  persona: Persona;
 }
+
+// The pipeline: write persona-voiced content, then lay it out into blocks.
+// Wrapped with weave.op so the trace tree is:
+//   orchestrate
+//     ├─ content-agent
+//     └─ ui-composer
+export const orchestrate = weave.op(
+  async function orchestrate({ request, persona }: OrchestrateInput): Promise<Block[]> {
+    const content = await runContentAgent({ request, persona });
+    const blocks = await runUIComposer({ persona, content });
+    return blocks;
+  },
+  { name: "orchestrate" }
+);
