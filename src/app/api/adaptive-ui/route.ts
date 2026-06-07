@@ -21,8 +21,8 @@ export async function POST(req: Request) {
       : detectPersona(request) ?? "enduser";
 
     await initWeave();
-    const blocks = await orchestrate({ request, persona });
-    return Response.json({ persona, blocks });
+    const { blocks, theme } = await orchestrate({ request, persona });
+    return Response.json({ persona, blocks, theme });
   } catch (err) {
     console.error("[adaptive-ui] pipeline failed:", err);
     return Response.json({ error: "pipeline failed" }, { status: 500 });

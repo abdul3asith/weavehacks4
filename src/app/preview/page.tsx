@@ -22,7 +22,7 @@ export default async function Preview({
     : "developer";
 
   await initWeave();
-  const blocks = await orchestrate({ request, persona });
+  const { blocks, theme } = await orchestrate({ request, persona });
 
   return (
     <main>
@@ -30,7 +30,7 @@ export default async function Preview({
         PREVIEW · persona={persona} · q=&quot;{request}&quot; · blocks={blocks.length} · types=
         {blocks.map((b) => b.type).join(",")}
       </div>
-      <Renderer persona={persona} blocks={blocks} />
+      <Renderer persona={persona} blocks={blocks} theme={theme} />
     </main>
   );
 }

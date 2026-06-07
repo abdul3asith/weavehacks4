@@ -85,7 +85,7 @@ export function DiagramFlow({ nodes, edges, theme }: { nodes: DiagramNode[]; edg
             <path d={d} fill="none" stroke={theme.muted} strokeWidth={1.5} markerEnd="url(#df-arrow)" opacity={0.75} />
             {e.label && (
               <text x={(x1 + x2) / 2} y={midY} fill={theme.muted} fontSize={11} fontFamily={theme.fontBody}
-                textAnchor="middle" dominantBaseline="middle" stroke={theme.bg} strokeWidth={4} paintOrder="stroke">
+                textAnchor="middle" dominantBaseline="middle" stroke={theme.bgSolid} strokeWidth={4} paintOrder="stroke">
                 {e.label}
               </text>
             )}
