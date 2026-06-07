@@ -1,7 +1,20 @@
 // The FIXED component menu. The ui-composer agent will emit Block[] matching
 // these shapes — it may pick and order blocks, but never invent new types.
 
-export type Persona = "researcher" | "developer" | "business" | "enduser";
+// Single source of truth for the persona enum. Adding a persona here makes
+// every `Record<Persona, …>` map (THEMES, VOICE, HEURISTICS, PALETTE) a TS
+// error until it gets an entry — that's the safety net.
+export const PERSONAS = [
+  "researcher",
+  "developer",
+  "business",
+  "enduser",
+  "designer",
+  "journalist",
+  "student",
+  "marketer",
+] as const;
+export type Persona = (typeof PERSONAS)[number];
 
 // Inline text pieces inside a paragraph
 export type TextRun = string | { sup: string } | { code: string };

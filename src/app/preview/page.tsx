@@ -4,11 +4,9 @@
 import { initWeave } from "@/lib/weave";
 import { orchestrate } from "@/lib/agents/orchestrator";
 import { Renderer } from "@/components/render/Renderer";
-import type { Persona } from "@/lib/ui-contract";
+import { PERSONAS, type Persona } from "@/lib/ui-contract";
 
 export const dynamic = "force-dynamic"; // always re-run the agents on load
-
-const PERSONAS: Persona[] = ["researcher", "developer", "business", "enduser"];
 
 export default async function Preview({
   searchParams,
@@ -22,7 +20,7 @@ export default async function Preview({
     : "developer";
 
   await initWeave();
-  const blocks = await orchestrate({ request, persona });
+  const { blocks, theme } = await orchestrate({ request, persona });
 
   return (
     <main>
@@ -30,7 +28,7 @@ export default async function Preview({
         PREVIEW · persona={persona} · q=&quot;{request}&quot; · blocks={blocks.length} · types=
         {blocks.map((b) => b.type).join(",")}
       </div>
-      <Renderer persona={persona} blocks={blocks} />
+      <Renderer persona={persona} blocks={blocks} theme={theme} />
     </main>
   );
 }

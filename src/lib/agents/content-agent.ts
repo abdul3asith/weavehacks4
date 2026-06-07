@@ -26,6 +26,14 @@ const VOICE: Record<Persona, string> = {
     "an exec-brief writer. Lead with the bottom line. Short, outcome-oriented, ROI/risk framing. No code, no jargon.",
   enduser:
     "a friendly teacher explaining to a curious beginner. Warm, plain language, analogies, no jargon. Assume zero background.",
+  designer:
+    "a design critic writing for designers. Concrete about composition, typography, color, hierarchy, and visual reference points. Treat the topic as something that has a look and a feel as well as a function.",
+  journalist:
+    "a longform journalist. Open with a scene or lede that grounds the reader, then move into the explanation in a narrative arc. Plain language, vivid specifics, attributed claims where they matter.",
+  student:
+    "a curious, careful student taking study notes. Define terms before using them, work through the logic step by step, and ask the obvious follow-up questions a learner would have. Friendly but precise.",
+  marketer:
+    "a product marketer writing copy. Lead with the benefit and the audience. Short, punchy sentences. Concrete outcomes over abstract features. No jargon and no internal-team voice.",
 };
 
 // Writes the explanation in the target persona's voice. Wrapped with weave.op

@@ -1,6 +1,6 @@
 "use client";
 import { Renderer } from "@/components/render/Renderer";
-import { THEMES } from "@/components/render/Theme";
+import { THEMES, type Theme } from "@/components/render/Theme";
 import { detectPersona } from "@/lib/detect-persona";
 import type { AdaptiveAgentState } from "@/lib/agents/adaptive-agent";
 import type { Block, Persona } from "@/lib/ui-contract";
@@ -15,9 +15,9 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const BAR_BG = "#0a0c12";
 
-type Turn = { request: string; persona: Persona; blocks: Block[] };
+type Turn = { request: string; persona: Persona; blocks: Block[]; theme?: Theme };
 
-function QuestionHeader({ text, theme }: { text: string; theme: (typeof THEMES)[Persona] }) {
+function QuestionHeader({ text, theme }: { text: string; theme: Theme }) {
   return (
     <div style={{ maxWidth: theme.measure, margin: "0 auto", padding: "28px 28px 0" }}>
       <div style={{ color: theme.muted, fontFamily: "'JetBrains Mono',monospace", fontSize: 11, letterSpacing: "0.12em", marginBottom: 6 }}>YOU ASKED</div>
@@ -46,17 +46,19 @@ export default function Page() {
   // live run's persona (so a persona-change run re-skins immediately).
   const convPersona: Persona | null = turns[0]?.persona ?? null;
   const persona: Persona = (running ? st?.persona : convPersona) ?? convPersona ?? "enduser";
-  const theme = THEMES[persona];
+  // Dynamic theme (add-on): from the live run / latest turn, else static fallback.
+  const liveTheme = running ? st?.theme : turns[turns.length - 1]?.theme;
+  const theme: Theme = liveTheme ?? THEMES[persona];
 
   // Capture a finished run into the conversation (once per submit).
   useEffect(() => {
     if (status === "done" && awaitingCapture.current && st?.request === pending && (st?.blocks?.length ?? 0) > 0) {
-      const turn: Turn = { request: st!.request!, persona: st!.persona!, blocks: [...st!.blocks!] };
+      const turn: Turn = { request: st!.request!, persona: st!.persona!, blocks: [...st!.blocks!], theme: st?.theme };
       setTurns((prev) => [...prev, turn]);
       awaitingCapture.current = false;
       setPending(null);
     }
-  }, [status, st?.blocks, st?.request, pending]);
+  }, [status, st?.blocks, st?.request, st?.theme, pending]);
 
   // Auto-scroll to the newest content (ChatGPT behavior).
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [turns.length, pending, status]);
@@ -131,12 +133,15 @@ export default function Page() {
       ) : (
         <>
           <div ref={scrollRef} style={{ flex: 1, overflowY: "auto" }}>
-            {turns.map((t, i) => (
-              <div key={i} style={{ borderTop: i > 0 ? `1px solid ${theme.rule}` : undefined, animation: "fade 0.4s ease both" }}>
-                <QuestionHeader text={t.request} theme={THEMES[t.persona]} />
-                <Renderer persona={t.persona} blocks={t.blocks} />
-              </div>
-            ))}
+            {turns.map((t, i) => {
+              const tt = t.theme ?? THEMES[t.persona];
+              return (
+                <div key={i} style={{ borderTop: i > 0 ? `1px solid ${tt.rule}` : undefined, animation: "fade 0.4s ease both" }}>
+                  <QuestionHeader text={t.request} theme={tt} />
+                  <Renderer persona={t.persona} blocks={t.blocks} theme={t.theme} />
+                </div>
+              );
+            })}
 
             {running && (
               <div style={{ borderTop: turns.length > 0 ? `1px solid ${theme.rule}` : undefined }}>

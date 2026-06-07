@@ -2,7 +2,8 @@ import { AbstractAgent } from "@ag-ui/client";
 import { EventType, type BaseEvent, type RunAgentInput } from "@ag-ui/core";
 import { Observable } from "rxjs";
 import { detectPersona } from "../detect-persona";
-import type { Block, Persona } from "../ui-contract";
+import { PERSONAS, type Block, type Persona } from "../ui-contract";
+import type { Theme } from "@/components/render/Theme";
 import { adaptiveGraph } from "./graph";
 import { initWeave } from "../weave";
 
@@ -13,10 +14,11 @@ export interface AdaptiveAgentState {
   status: "idle" | "writing" | "composing" | "done";
   content: string;
   blocks: Block[];
+  // Dynamic, topic-aware theme (add-on); undefined until pick_theme resolves.
+  theme?: Theme;
 }
 
 const EMPTY: AdaptiveAgentState = { request: "", persona: "enduser", status: "idle", content: "", blocks: [] };
-const PERSONAS: Persona[] = ["researcher", "developer", "business", "enduser"];
 
 // Custom AG-UI agent: runs the in-process LangGraph and emits STATE_SNAPSHOT
 // events per node so the UI streams "writing -> composing -> done" with blocks.
@@ -71,6 +73,9 @@ export class AdaptiveAgent extends AbstractAgent {
             state = { ...state, ...update };
             snapshot(state);
           }
+          // Whole graph drained → final state has blocks AND theme; mark done now.
+          state = { ...state, status: "done" };
+          snapshot(state);
 
           // Short narration in the chat thread.
           const messageId = `msg_${runId}`;
