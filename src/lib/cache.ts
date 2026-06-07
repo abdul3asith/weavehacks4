@@ -5,7 +5,12 @@ import type { Theme } from "@/components/render/Theme";
 // Bump SCHEMA_VERSION whenever the Theme type in src/components/render/Theme.ts
 // gains or loses a field. Stale entries from a previous shape would deserialize
 // wrong and reach the renderer.
-const SCHEMA_VERSION = "v2";
+const SCHEMA_VERSION = "v3";
+
+// PAUSED during design iteration so every request hits the live theme agent
+// (saves money on stale entries while we tune the palette + fonts; the cache
+// itself is unchanged). Flip back to false before merging to main.
+const CACHE_PAUSED = true;
 
 function key(persona: Persona): string {
   return `theme:${SCHEMA_VERSION}:${persona}`;
@@ -49,6 +54,7 @@ async function client(): Promise<any> {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export async function getCachedTheme(persona: Persona): Promise<Theme | null> {
+  if (CACHE_PAUSED) return null;
   const c = await client();
   if (!c) return null;
   try {
@@ -62,6 +68,7 @@ export async function getCachedTheme(persona: Persona): Promise<Theme | null> {
 }
 
 export async function setCachedTheme(persona: Persona, theme: Theme): Promise<void> {
+  if (CACHE_PAUSED) return;
   const c = await client();
   if (!c) return;
   try {
