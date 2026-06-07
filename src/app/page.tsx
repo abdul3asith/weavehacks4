@@ -2,13 +2,11 @@
 import { Renderer } from "@/components/render/Renderer";
 import type { Theme } from "@/components/render/Theme";
 import { detectPersona } from "@/lib/detect-persona";
-import type { Block, Persona } from "@/lib/ui-contract";
+import { PERSONAS, type Block, type Persona } from "@/lib/ui-contract";
 import { useCopilotAction } from "@copilotkit/react-core";
 import { useCallback, useMemo, useState } from "react";
 
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500;700&family=Archivo:wght@400;500;600;700;800;900&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');`;
-
-const PERSONAS: Persona[] = ["researcher", "developer", "business", "enduser"];
+const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500;700&family=Archivo:wght@400;500;600;700;800;900&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800;900&family=Playfair+Display:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Quicksand:wght@400;500;600;700&family=Caveat:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');`;
 
 // The input bar — defined at module scope (not inside Page) so it keeps focus
 // across re-renders. Used both as the centered hero and the docked footer.
@@ -85,7 +83,7 @@ export default function Page() {
     description: "Generate and render an adaptive UI explaining a topic, tailored to a persona.",
     parameters: [
       { name: "request", type: "string", description: "What to explain", required: true },
-      { name: "persona", type: "string", description: "researcher, developer, business, or enduser", required: false },
+      { name: "persona", type: "string", description: `one of: ${PERSONAS.join(", ")}`, required: false },
     ],
     handler: async ({ request, persona: pArg }) => {
       const p = PERSONAS.includes(pArg as Persona) ? (pArg as Persona) : detectPersona(request) ?? "enduser";
@@ -109,7 +107,7 @@ export default function Page() {
         // ---- HERO: plain centered input (ChatGPT-style empty state) ----
         <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px" }}>
           <div style={{ color: "#5ef2a0", fontFamily: "'JetBrains Mono',monospace", fontSize: 12, letterSpacing: "0.14em", marginBottom: 14 }}>
-            ADAPTIVE UI · one input → four interfaces
+            ADAPTIVE UI · one input → eight interfaces
           </div>
           <h1 style={{ color: "#e6ebf5", fontFamily: "'Archivo',sans-serif", fontWeight: 800, fontSize: 30, margin: "0 0 22px", textAlign: "center" }}>
             What do you want to understand?

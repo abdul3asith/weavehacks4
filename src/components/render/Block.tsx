@@ -1,4 +1,4 @@
-import type { Block as BlockType, Persona, TextRun } from "@/lib/ui-contract";
+import type { Block as BlockType, TextRun } from "@/lib/ui-contract";
 import React from "react";
 import type { Theme } from "./Theme";
 import { DiagramFlow } from "./DiagramFlow";
@@ -17,29 +17,29 @@ function Runs({ runs, theme }: { runs: TextRun[]; theme: Theme }) {
   );
 }
 
-export function Block({ block, theme, persona }: { block: BlockType; theme: Theme; persona: Persona }) {
+export function Block({ block, theme }: { block: BlockType; theme: Theme }) {
   const A = theme.accent;
 
   switch (block.type) {
     case "heading":
       return (
-        <header style={{ marginBottom: persona === "enduser" ? 8 : 18 }}>
+        <header style={{ marginBottom: theme.headingMarginBottom }}>
           <h1 style={{
             fontFamily: theme.fontDisplay, color: theme.ink, margin: 0,
-            fontSize: persona === "developer" ? 30 : persona === "enduser" ? 40 : 38,
-            fontWeight: persona === "business" ? 800 : persona === "enduser" ? 600 : 600,
-            letterSpacing: persona === "business" ? "-0.02em" : persona === "researcher" ? "0" : "-0.01em",
+            fontSize: theme.headingSize,
+            fontWeight: theme.headingWeight,
+            letterSpacing: theme.headingLetterSpacing,
             lineHeight: 1.1,
           }}>
-            {persona === "developer" ? <span style={{ color: A }}>$ </span> : null}
+            {theme.headingPrefix ? <span style={{ color: A }}>{theme.headingPrefix}</span> : null}
             {block.title}
           </h1>
           {block.subtitle && (
-            <p style={{ fontFamily: theme.fontBody, color: theme.muted, margin: "8px 0 0", fontSize: persona === "researcher" ? 17 : 15, fontStyle: persona === "researcher" ? "italic" : "normal" }}>
+            <p style={{ fontFamily: theme.fontBody, color: theme.muted, margin: "8px 0 0", fontSize: theme.subtitleSize, fontStyle: theme.subtitleItalic ? "italic" : "normal" }}>
               {block.subtitle}
             </p>
           )}
-          {persona === "researcher" && <div style={{ height: 1, background: theme.rule, marginTop: 16 }} />}
+          {theme.headerDivider && <div style={{ height: 1, background: theme.rule, marginTop: 16 }} />}
         </header>
       );
 
@@ -48,7 +48,7 @@ export function Block({ block, theme, persona }: { block: BlockType; theme: Them
 
     case "prose":
       return (
-        <p style={{ fontFamily: theme.fontBody, color: theme.ink, fontSize: persona === "researcher" ? 18 : persona === "enduser" ? 18 : 15.5, lineHeight: persona === "researcher" ? 1.7 : 1.65, margin: "0 0 18px" }}>
+        <p style={{ fontFamily: theme.fontBody, color: theme.ink, fontSize: theme.proseSize, lineHeight: theme.proseLineHeight, margin: "0 0 18px" }}>
           <Runs runs={block.runs} theme={theme} />
         </p>
       );
