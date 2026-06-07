@@ -1,4 +1,4 @@
-import { Redis } from "@upstash/redis";
+import { createClient } from "redis";
 import type { Persona } from "./ui-contract";
 import type { Theme } from "@/components/render/Theme";
 
@@ -17,27 +17,44 @@ function ttlSeconds(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 86_400;
 }
 
-// Lazy singleton. Returns null when Upstash isn't configured so the rest of
-// the pipeline keeps working unchanged — the cache is a pure optimization.
-let cached: Redis | null | undefined;
-function client(): Redis | null {
-  if (cached !== undefined) return cached;
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) {
-    cached = null;
-    return null;
-  }
-  cached = new Redis({ url, token });
-  return cached;
+// Persist the client across Next.js dev hot reloads so we don't leak TCP
+// connections. Typed loosely because node-redis v6's `RedisClientType`
+// generic defaults don't compare cleanly across the declare-global boundary;
+// the only consumers are the two helpers below, which use a tiny call
+// surface (.get / .set / .on / .connect) that doesn't need stronger types.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+declare global {
+  var _themeCacheRedis: any;
 }
 
+async function client(): Promise<any> {
+  if (globalThis._themeCacheRedis !== undefined) return globalThis._themeCacheRedis;
+  const url = process.env.REDIS_URL;
+  if (!url) {
+    globalThis._themeCacheRedis = null;
+    return null;
+  }
+  try {
+    const c = createClient({ url });
+    c.on("error", (e: unknown) => console.warn("[theme-cache] redis error:", e));
+    await c.connect();
+    globalThis._themeCacheRedis = c;
+    return c;
+  } catch (e) {
+    console.warn("[theme-cache] connect failed:", e);
+    globalThis._themeCacheRedis = null;
+    return null;
+  }
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 export async function getCachedTheme(persona: Persona): Promise<Theme | null> {
-  const c = client();
+  const c = await client();
   if (!c) return null;
   try {
-    const value = await c.get<Theme>(key(persona));
-    return value ?? null;
+    const raw: string | null = await c.get(key(persona));
+    if (!raw) return null;
+    return JSON.parse(raw) as Theme;
   } catch (e) {
     console.warn("[theme-cache] read failed:", e);
     return null;
@@ -45,10 +62,10 @@ export async function getCachedTheme(persona: Persona): Promise<Theme | null> {
 }
 
 export async function setCachedTheme(persona: Persona, theme: Theme): Promise<void> {
-  const c = client();
+  const c = await client();
   if (!c) return;
   try {
-    await c.set(key(persona), theme, { ex: ttlSeconds() });
+    await c.set(key(persona), JSON.stringify(theme), { EX: ttlSeconds() });
   } catch (e) {
     console.warn("[theme-cache] write failed:", e);
   }
