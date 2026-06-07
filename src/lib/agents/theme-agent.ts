@@ -106,6 +106,7 @@ export const runThemeAgent = weave.op(
             `Persona archetype: ${HEURISTICS[persona]}\n\n` +
             "Constraints:\n" +
             "- ink must be a dark color (relative luminance < 0.35); it has to read against bg and surface.\n" +
+            "- muted is used for subtitles, bylines, and secondary text — it must still have ≥ 3.0 contrast against both bg and surface. Pick a darker secondary, not a tint of bg.\n" +
             "- surface must be solid (no gradient).\n" +
             "- bgSolid is a solid-color twin of bg; if bg is a gradient, choose a representative middle color.\n" +
             "- rule is the 1px border / divider color; keep it close to bg/surface.\n" +
@@ -122,11 +123,20 @@ export const runThemeAgent = weave.op(
 
     // Catastrophic-only contrast gate. The hand-tuned static themes don't
     // pass WCAG AA either; we only reject themes that are visually broken.
+    // muted is included because the renderer uses it for subtitles + bylines
+    // — light-on-light there is the most common failure mode.
     const inkOnSurface = contrast(parsed.ink, parsed.surface);
     const inkOnBg = contrast(parsed.ink, parsed.bgSolid);
-    if (inkOnSurface < 3.0 || inkOnBg < 3.0) {
+    const mutedOnBg = contrast(parsed.muted, parsed.bgSolid);
+    const mutedOnSurface = contrast(parsed.muted, parsed.surface);
+    if (
+      inkOnSurface < 3.0 ||
+      inkOnBg < 3.0 ||
+      mutedOnBg < 3.0 ||
+      mutedOnSurface < 3.0
+    ) {
       throw new Error(
-        `theme-agent: contrast too low (ink/surface=${inkOnSurface.toFixed(2)}, ink/bgSolid=${inkOnBg.toFixed(2)})`
+        `theme-agent: contrast too low (ink/surface=${inkOnSurface.toFixed(2)}, ink/bgSolid=${inkOnBg.toFixed(2)}, muted/bgSolid=${mutedOnBg.toFixed(2)}, muted/surface=${mutedOnSurface.toFixed(2)})`
       );
     }
 
