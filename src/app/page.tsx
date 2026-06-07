@@ -6,7 +6,7 @@ import { PERSONAS, type Block, type Persona } from "@/lib/ui-contract";
 import { useCopilotAction } from "@copilotkit/react-core";
 import { useCallback, useMemo, useState } from "react";
 
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500;700&family=Archivo:wght@400;500;600;700;800;900&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800;900&family=Playfair+Display:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Quicksand:wght@400;500;600;700&family=Caveat:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');`;
+const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Playfair+Display:ital,wght@0,400;0,700;0,800;0,900;1,400;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,600&family=JetBrains+Mono:wght@400;500;700&family=Archivo:wght@400;500;600;700;800;900&family=Nunito:wght@400;600;700;800;900&family=Fredoka:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,400&family=DM+Sans:wght@400;500;600;700&family=Caveat:wght@400;500;600;700&family=Quicksand:wght@400;500;600;700&family=Bricolage+Grotesque:wght@400;500;600;700;800&display=swap');`;
 
 // The input bar — defined at module scope (not inside Page) so it keeps focus
 // across re-renders. Used both as the centered hero and the docked footer.

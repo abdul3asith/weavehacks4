@@ -9,54 +9,121 @@ function Runs({ runs, theme }: { runs: TextRun[]; theme: Theme }) {
     <>
       {runs.map((r, i) => {
         if (typeof r === "string") return <span key={i}>{r}</span>;
-        if ("sup" in r) return <sup key={i} style={{ color: theme.accent, fontWeight: 600 }}>{r.sup}</sup>;
-        if ("code" in r) return <code key={i} style={{ fontFamily: "'JetBrains Mono', monospace", background: "rgba(0,0,0,0.07)", padding: "1px 5px", borderRadius: 4, fontSize: "0.9em" }}>{r.code}</code>;
+        if ("sup" in r) return <sup key={i} style={{ color: theme.tertiary, fontWeight: 700 }}>{r.sup}</sup>;
+        if ("code" in r) return (
+          <code key={i} style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            // Derive a subtle tint of secondary at runtime — keeps the chip
+            // tonally connected to the persona without adding a new Theme field.
+            background: `color-mix(in srgb, ${theme.secondary} 14%, transparent)`,
+            color: theme.ink,
+            padding: "1px 5px", borderRadius: 4, fontSize: "0.9em",
+          }}>{r.code}</code>
+        );
         return null;
       })}
     </>
   );
 }
 
-export function Block({ block, theme }: { block: BlockType; theme: Theme }) {
-  const A = theme.accent;
+// First letter of `text`, plus the rest. Used by the journalist drop-cap.
+function splitFirstLetter(text: string): [string, string] {
+  const m = text.match(/^(\s*)(\S)([\s\S]*)$/);
+  if (!m) return ["", text];
+  return [m[2], m[1] + m[3]];
+}
+
+// Render a TextRun[] with the first letter pulled out as a drop-cap. The cap
+// is rendered float-left so the rest of the paragraph wraps around it; sizing
+// + leading is tuned for serif body fonts (the only personas using dropCap).
+function ProseWithDropCap({ runs, theme }: { runs: TextRun[]; theme: Theme }) {
+  // Find the first plain-string run to take the first letter from.
+  const firstStringIdx = runs.findIndex((r) => typeof r === "string");
+  if (firstStringIdx === -1) return <Runs runs={runs} theme={theme} />;
+
+  const firstString = runs[firstStringIdx] as string;
+  const [cap, rest] = splitFirstLetter(firstString);
+  if (!cap) return <Runs runs={runs} theme={theme} />;
+
+  const trailing = [rest, ...runs.slice(firstStringIdx + 1)] as TextRun[];
+  return (
+    <>
+      <span style={{
+        float: "left",
+        // Use body font (not display) so the cap matches the paragraph it
+        // wraps into — sans-cap on serif body looks visually mismatched.
+        fontFamily: theme.fontBody,
+        color: theme.primary,
+        fontSize: "3.6em",
+        lineHeight: "0.85",
+        padding: "6px 10px 0 0",
+        fontWeight: 700,
+      }}>{cap}</span>
+      <Runs runs={trailing} theme={theme} />
+    </>
+  );
+}
+
+export function Block({
+  block, theme, isFirstProse = false,
+}: {
+  block: BlockType;
+  theme: Theme;
+  isFirstProse?: boolean;
+}) {
+  const P = theme.primary;
 
   switch (block.type) {
-    case "heading":
-      return (
-        <header style={{ marginBottom: theme.headingMarginBottom }}>
+    case "heading": {
+      const headerInner = (
+        <>
           <h1 style={{
             fontFamily: theme.fontDisplay, color: theme.ink, margin: 0,
             fontSize: theme.headingSize,
             fontWeight: theme.headingWeight,
             letterSpacing: theme.headingLetterSpacing,
-            lineHeight: 1.1,
+            lineHeight: 1.05,
           }}>
-            {theme.headingPrefix ? <span style={{ color: A }}>{theme.headingPrefix}</span> : null}
+            {theme.headingPrefix ? <span style={{ color: P }}>{theme.headingPrefix}</span> : null}
             {block.title}
           </h1>
           {block.subtitle && (
-            <p style={{ fontFamily: theme.fontBody, color: theme.muted, margin: "8px 0 0", fontSize: theme.subtitleSize, fontStyle: theme.subtitleItalic ? "italic" : "normal" }}>
+            <p style={{ fontFamily: theme.fontBody, color: theme.muted, margin: "8px 0 0", fontSize: theme.subtitleSize, fontStyle: theme.subtitleItalic ? "italic" : "normal", lineHeight: 1.35 }}>
               {block.subtitle}
             </p>
           )}
           {theme.headerDivider && <div style={{ height: 1, background: theme.rule, marginTop: 16 }} />}
+        </>
+      );
+      // headerRail wraps the heading content in a 4px-left-border container,
+      // a gallery / editorial signature (designer persona).
+      return (
+        <header style={{ marginBottom: theme.headingMarginBottom }}>
+          {theme.headerRail ? (
+            <div style={{ borderLeft: `4px solid ${P}`, paddingLeft: 18 }}>{headerInner}</div>
+          ) : headerInner}
         </header>
       );
+    }
 
     case "byline":
       return <p style={{ fontFamily: theme.fontBody, color: theme.muted, fontSize: 13, letterSpacing: "0.04em", textTransform: "uppercase", margin: "0 0 18px" }}>{block.text}</p>;
 
-    case "prose":
+    case "prose": {
+      const showDropCap = isFirstProse && theme.dropCap;
       return (
         <p style={{ fontFamily: theme.fontBody, color: theme.ink, fontSize: theme.proseSize, lineHeight: theme.proseLineHeight, margin: "0 0 18px" }}>
-          <Runs runs={block.runs} theme={theme} />
+          {showDropCap
+            ? <ProseWithDropCap runs={block.runs} theme={theme} />
+            : <Runs runs={block.runs} theme={theme} />}
         </p>
       );
+    }
 
     case "callout":
       return (
-        <aside style={{ borderLeft: `3px solid ${A}`, background: "rgba(138,43,43,0.06)", padding: "14px 16px", margin: "8px 0 22px", borderRadius: "0 6px 6px 0" }}>
-          <div style={{ fontFamily: theme.fontBody, fontWeight: 600, color: A, fontSize: 14, marginBottom: 4 }}>{block.title}</div>
+        <aside style={{ borderLeft: `3px solid ${P}`, background: theme.calloutTint, padding: "14px 16px", margin: "8px 0 22px", borderRadius: "0 6px 6px 0" }}>
+          <div style={{ fontFamily: theme.fontBody, fontWeight: 600, color: P, fontSize: 14, marginBottom: 4 }}>{block.title}</div>
           <div style={{ fontFamily: theme.fontBody, color: theme.ink, fontSize: 15, lineHeight: 1.55, fontStyle: "italic" }}>{block.body}</div>
         </aside>
       );
@@ -75,7 +142,7 @@ export function Block({ block, theme }: { block: BlockType; theme: Theme }) {
                   {href && (
                     <>
                       {" "}
-                      <a href={href} target="_blank" rel="noreferrer" style={{ color: theme.accent, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5 }}>↗ link</a>
+                      <a href={href} target="_blank" rel="noreferrer" style={{ color: theme.primary, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5 }}>↗ link</a>
                     </>
                   )}
                 </li>
@@ -94,7 +161,7 @@ export function Block({ block, theme }: { block: BlockType; theme: Theme }) {
           <pre style={{ margin: 0, padding: "14px 16px", fontFamily: "'JetBrains Mono', monospace", fontSize: 13.5, lineHeight: 1.7 }}>
             {block.lines.map((ln, i) => (
               <div key={i}>
-                {ln.p && <span style={{ color: theme.accent, marginRight: 8 }}>{ln.p}</span>}
+                {ln.p && <span style={{ color: theme.primary, marginRight: 8 }}>{ln.p}</span>}
                 {ln.c && <span style={{ color: theme.ink }}>{ln.c}</span>}
                 {ln.o && <span style={{ color: theme.muted }}>{ln.o}</span>}
               </div>
@@ -104,17 +171,24 @@ export function Block({ block, theme }: { block: BlockType; theme: Theme }) {
       );
 
     case "code": {
-      const colors: Record<string, string> = { k: "#ff7edb", t: theme.ink, s: "#5ef2a0", fn: "#6cb6ff" };
+      // Syntax colors now come from the theme so light personas get tonal
+      // colors readable on `surface` instead of the developer synthwave palette.
+      const colors: Record<string, string> = {
+        k: theme.codeKeyword,
+        t: theme.ink,
+        s: theme.codeString,
+        fn: theme.codeFunction,
+      };
       const source = block.tokens.map((line) => line.map(([, txt]) => txt).join("")).join("\n");
       return (
         <div style={{ background: theme.surface, border: `1px solid ${theme.rule}`, borderRadius: 8, margin: "4px 0 18px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px", borderBottom: `1px solid ${theme.rule}` }}>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: theme.muted }}>{block.lang}</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: theme.secondary, fontWeight: 600, letterSpacing: "0.04em" }}>{block.lang}</span>
             <CopyButton text={source} theme={theme} />
           </div>
           <pre style={{ margin: 0, padding: "14px 16px", fontFamily: "'JetBrains Mono', monospace", fontSize: 13.5, lineHeight: 1.7, overflowX: "auto" }}>
             {block.tokens.map((line, i) => (
-              <div key={i}>{line.length === 0 ? "\u00A0" : line.map(([cls, txt], j) => <span key={j} style={{ color: colors[cls] }}>{txt}</span>)}</div>
+              <div key={i}>{line.length === 0 ? " " : line.map(([cls, txt], j) => <span key={j} style={{ color: colors[cls] }}>{txt}</span>)}</div>
             ))}
           </pre>
         </div>
@@ -126,7 +200,7 @@ export function Block({ block, theme }: { block: BlockType; theme: Theme }) {
         <ol style={{ listStyle: "none", margin: "4px 0 18px", padding: 0 }}>
           {block.items.map((it, i) => (
             <li key={i} style={{ display: "flex", gap: 12, marginBottom: 10, alignItems: "flex-start" }}>
-              <span style={{ flex: "0 0 auto", width: 22, height: 22, borderRadius: 5, background: theme.accent, color: "#05080f", fontFamily: theme.fontBody, fontWeight: 700, fontSize: 12, display: "grid", placeItems: "center" }}>{i + 1}</span>
+              <span style={{ flex: "0 0 auto", width: 22, height: 22, borderRadius: 5, background: theme.primary, color: theme.surface, fontFamily: theme.fontBody, fontWeight: 700, fontSize: 12, display: "grid", placeItems: "center" }}>{i + 1}</span>
               <span style={{ fontFamily: theme.fontBody, color: theme.ink, fontSize: 14.5, lineHeight: 1.5 }}>{it}</span>
             </li>
           ))}
@@ -136,24 +210,35 @@ export function Block({ block, theme }: { block: BlockType; theme: Theme }) {
     case "links":
       return (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
-          {block.items.map((l, i) => <a key={i} href={l.href} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: theme.accent, textDecoration: "none", border: `1px solid ${theme.rule}`, padding: "6px 10px", borderRadius: 6 }}>→ {l.label}</a>)}
+          {block.items.map((l, i) => <a key={i} href={l.href} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: theme.primary, textDecoration: "none", border: `1px solid ${theme.rule}`, padding: "6px 10px", borderRadius: 6 }}>→ {l.label}</a>)}
         </div>
       );
 
-    case "tldr":
+    case "tldr": {
+      // "wedge" style is a marketer signature: sharp top-right corner, a left
+      // stripe in secondary, and no shadow. "soft" is the original rounded
+      // box with a tinted shadow derived from primary.
+      const isWedge = theme.tldrStyle === "wedge";
       return (
-        <div style={{ background: theme.accent, color: "#fff", borderRadius: 12, padding: "18px 20px", margin: "6px 0 22px", boxShadow: "0 8px 24px rgba(29,78,216,0.25)" }}>
+        <div style={{
+          background: theme.primary, color: "#fff",
+          borderRadius: isWedge ? "4px 4px 4px 0" : 12,
+          padding: "18px 20px", margin: "6px 0 22px",
+          boxShadow: isWedge ? "none" : `0 8px 24px ${theme.tldrShadow}`,
+          borderLeft: isWedge ? `6px solid ${theme.secondary}` : "none",
+        }}>
           <div style={{ fontFamily: theme.fontBody, fontWeight: 800, fontSize: 12, letterSpacing: "0.1em", opacity: 0.85, marginBottom: 6 }}>TL;DR</div>
           <div style={{ fontFamily: theme.fontBody, fontSize: 16.5, lineHeight: 1.5, fontWeight: 500 }}>{block.body}</div>
         </div>
       );
+    }
 
     case "keypoints":
       return (
         <div style={{ display: "grid", gap: 12, margin: "0 0 22px" }}>
           {block.items.map((it, i) => (
             <div key={i} style={{ background: theme.surface, border: `1px solid ${theme.rule}`, borderRadius: 10, padding: "14px 16px" }}>
-              <div style={{ fontFamily: theme.fontBody, fontWeight: 700, color: theme.accent, fontSize: 13, marginBottom: 3 }}>{it.h}</div>
+              <div style={{ fontFamily: theme.fontBody, fontWeight: 700, color: theme.secondary, fontSize: 13, marginBottom: 3, letterSpacing: "0.02em" }}>{it.h}</div>
               <div style={{ fontFamily: theme.fontBody, color: theme.ink, fontSize: 15, lineHeight: 1.5 }}>{it.t}</div>
             </div>
           ))}
@@ -184,7 +269,7 @@ export function Block({ block, theme }: { block: BlockType; theme: Theme }) {
         <div style={{ background: theme.surface, border: `2px solid ${theme.rule}`, borderRadius: 20, padding: "18px 20px", margin: "6px 0 20px", display: "flex", gap: 14, alignItems: "center" }}>
           <div style={{ fontSize: 40 }}>{block.emoji}</div>
           <div>
-            <div style={{ fontFamily: theme.fontDisplay, fontWeight: 600, color: theme.accent, fontSize: 19, marginBottom: 3 }}>{block.title}</div>
+            <div style={{ fontFamily: theme.fontDisplay, fontWeight: 600, color: theme.primary, fontSize: 19, marginBottom: 3 }}>{block.title}</div>
             <div style={{ fontFamily: theme.fontBody, color: theme.ink, fontSize: 16, lineHeight: 1.5, fontWeight: 600 }}>{block.body}</div>
           </div>
         </div>
@@ -193,13 +278,13 @@ export function Block({ block, theme }: { block: BlockType; theme: Theme }) {
     case "visual":
       return (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexWrap: "wrap", margin: "4px 0 22px" }}>
-          {[{ t: "Your question", e: "\u2753" }, { t: "LangChain links the steps", e: "\uD83D\uDD17" }, { t: "Smart answer", e: "\u2728" }].map((b, i, arr) => (
+          {[{ t: "Your question", e: "❓" }, { t: "LangChain links the steps", e: "🔗" }, { t: "Smart answer", e: "✨" }].map((b, i, arr) => (
             <React.Fragment key={i}>
               <div style={{ background: theme.surface, border: `2px solid ${theme.rule}`, borderRadius: 16, padding: "14px 16px", textAlign: "center", minWidth: 110, flex: "1 1 110px" }}>
                 <div style={{ fontSize: 26 }}>{b.e}</div>
                 <div style={{ fontFamily: theme.fontBody, fontWeight: 700, color: theme.ink, fontSize: 13.5, marginTop: 4 }}>{b.t}</div>
               </div>
-              {i < arr.length - 1 && <div style={{ color: theme.accent, fontSize: 24, fontWeight: 800 }}>→</div>}
+              {i < arr.length - 1 && <div style={{ color: theme.primary, fontSize: 24, fontWeight: 800 }}>→</div>}
             </React.Fragment>
           ))}
         </div>
