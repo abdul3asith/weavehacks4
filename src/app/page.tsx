@@ -1,5 +1,6 @@
 "use client";
 import { Renderer } from "@/components/render/Renderer";
+import type { Theme } from "@/components/render/Theme";
 import { detectPersona } from "@/lib/detect-persona";
 import type { Block, Persona } from "@/lib/ui-contract";
 import { useCopilotAction } from "@copilotkit/react-core";
@@ -52,7 +53,7 @@ function ChatBar({
 
 export default function Page() {
   const [input, setInput] = useState("");
-  const [result, setResult] = useState<{ persona: Persona; blocks: Block[] } | null>(null);
+  const [result, setResult] = useState<{ persona: Persona; blocks: Block[]; theme: Theme } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,8 +70,8 @@ export default function Page() {
         body: JSON.stringify({ request, persona: p }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: { persona: Persona; blocks: Block[] } = await res.json();
-      setResult({ persona: data.persona, blocks: data.blocks });
+      const data: { persona: Persona; blocks: Block[]; theme: Theme } = await res.json();
+      setResult({ persona: data.persona, blocks: data.blocks, theme: data.theme });
     } catch (e) {
       setError(e instanceof Error ? e.message : "generation failed");
     } finally {
@@ -125,7 +126,7 @@ export default function Page() {
         <>
           <div style={{ paddingBottom: 132, minHeight: "100vh" }}>
             {result ? (
-              <Renderer persona={result.persona} blocks={result.blocks} />
+              <Renderer persona={result.persona} blocks={result.blocks} theme={result.theme} />
             ) : (
               <div style={{ minHeight: "70vh", display: "grid", placeItems: "center", color: "#5ef2a0", fontFamily: "'JetBrains Mono',monospace", fontSize: 14, animation: "pulse 1.4s ease-in-out infinite" }}>
                 running agents… composing your interface
