@@ -17,6 +17,11 @@ export type TerminalLine = { p?: string; c?: string; o?: string };
 // optional link, so researcher references can be clickable.
 export type Reference = string | { text: string; href?: string };
 
+// A flowchart described as DATA (not a text DSL), so it can never have a
+// "syntax error" — the renderer lays it out as SVG.
+export type DiagramNode = { id: string; label: string };
+export type DiagramEdge = { from: string; to: string; label?: string };
+
 export type Block =
   | { type: "heading"; title: string; subtitle?: string }
   | { type: "byline"; text: string }
@@ -34,9 +39,8 @@ export type Block =
   | { type: "analogy"; emoji: string; title: string; body: string }
   | { type: "visual" }
   | { type: "faq"; items: { q: string; a: string }[] }
-  // Mermaid diagram: flowchart / sequence / ER / mindmap / pie / xychart, etc.
-  // `code` is Mermaid source authored by the agent.
-  | { type: "diagram"; code: string; caption?: string };
+  // Flowchart as data: the agent emits nodes + directed edges; we render SVG.
+  | { type: "diagram"; nodes: DiagramNode[]; edges: DiagramEdge[]; caption?: string };
 
 export interface UISpec {
   persona: Persona;

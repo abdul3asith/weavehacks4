@@ -1,7 +1,7 @@
 import type { Block as BlockType, Persona, TextRun } from "@/lib/ui-contract";
 import React from "react";
 import type { Theme } from "./Theme";
-import { Mermaid } from "./Mermaid";
+import { DiagramFlow } from "./DiagramFlow";
 import { CopyButton } from "./CopyButton";
 
 function Runs({ runs, theme }: { runs: TextRun[]; theme: Theme }) {
@@ -220,8 +220,8 @@ export function Block({ block, theme, persona }: { block: BlockType; theme: Them
     case "diagram":
       return (
         <figure style={{ margin: "8px 0 20px" }}>
-          <div style={{ background: theme.surface, border: `1px solid ${theme.rule}`, borderRadius: 10, padding: "12px 8px" }}>
-            <Mermaid code={block.code} theme={theme} />
+          <div style={{ background: theme.surface, border: `1px solid ${theme.rule}`, borderRadius: 10, padding: "16px 12px" }}>
+            <DiagramFlow nodes={block.nodes} edges={block.edges} theme={theme} />
           </div>
           {block.caption && (
             <figcaption style={{ fontFamily: theme.fontBody, color: theme.muted, fontSize: 13, textAlign: "center", marginTop: 8 }}>{block.caption}</figcaption>

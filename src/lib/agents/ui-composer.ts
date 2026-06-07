@@ -42,8 +42,13 @@ const FootnoteS = z.object({ type: z.literal("footnote"), text: z.string() });
 const AnalogyS = z.object({ type: z.literal("analogy"), emoji: z.string(), title: z.string(), body: z.string() });
 const VisualS = z.object({ type: z.literal("visual") });
 const FaqS = z.object({ type: z.literal("faq"), items: z.array(z.object({ q: z.string(), a: z.string() })) });
-// Mermaid diagram: `code` is valid Mermaid source (flowchart/sequence/pie/etc).
-const DiagramS = z.object({ type: z.literal("diagram"), code: z.string(), caption: z.string().nullable() });
+// Flowchart as data: nodes + directed edges. No DSL -> no syntax errors.
+const DiagramS = z.object({
+  type: z.literal("diagram"),
+  nodes: z.array(z.object({ id: z.string(), label: z.string() })),
+  edges: z.array(z.object({ from: z.string(), to: z.string(), label: z.string().nullable() })),
+  caption: z.string().nullable(),
+});
 
 const BlockS = z.discriminatedUnion("type", [
   HeadingS, BylineS, ProseS, CalloutS, ReferencesS, TerminalS, CodeS, StepsS,
@@ -100,7 +105,12 @@ function toBlocks(raw: RawBlock[]): Block[] {
           items: b.items.map((it) => (it.href != null ? { text: it.text, href: it.href } : it.text)),
         };
       case "diagram":
-        return { type: "diagram", code: b.code, ...(b.caption != null ? { caption: b.caption } : {}) };
+        return {
+          type: "diagram",
+          nodes: b.nodes,
+          edges: b.edges.map((e) => ({ from: e.from, to: e.to, ...(e.label != null ? { label: e.label } : {}) })),
+          ...(b.caption != null ? { caption: b.caption } : {}),
+        };
       default:
         // byline, references, steps, links, tldr, keypoints, table, footnote,
         // analogy, visual, faq already match the contract exactly.
@@ -125,10 +135,11 @@ export const runUIComposer = weave.op(
             "ONLY emit the types defined by the schema — never invent fields or types. " +
             `For the "${persona}" persona, prefer these blocks: ${PALETTE[persona]}. ` +
             "Never emit the 'visual' block. " +
-            "The 'diagram' block holds valid Mermaid source in `code` — use it when a " +
-            "flowchart, sequence, process, hierarchy, or data chart (mermaid pie or " +
-            "xychart-beta) explains the topic better than text. Keep Mermaid simple and valid. " +
-            "Include a 'diagram' when it genuinely adds clarity (most topics have a useful one). " +
+            "The 'diagram' block is a flowchart described as DATA: `nodes` (each with a short " +
+            "`id` like 'a','b' and a concise `label`) and `edges` (each `from` an id `to` an id, " +
+            "with an optional short `label`). Build a clear directed flow of 4–8 nodes; every edge's " +
+            "from/to must reference a node id you defined. Use it when a process/flow/hierarchy " +
+            "clarifies the topic (most topics have a useful one). " +
             "For 'references', put the full citation in `text` and a real URL in `href` when one " +
             "exists (else null). " +
             (persona === "researcher"
